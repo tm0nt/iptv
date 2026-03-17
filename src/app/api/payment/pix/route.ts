@@ -55,7 +55,11 @@ export async function POST(request: NextRequest) {
   const pixExpiresAt = new Date()
   pixExpiresAt.setHours(pixExpiresAt.getHours() + 24) // 24h to pay
 
-  const idempotencyKey = `sub-${subscription.id}-${Date.now()}`
+  // Stable idempotency key — tied only to the subscription so retries are safe
+  const idempotencyKey = `sub-${subscription.id}`
+
+  // source_news=webhooks ensures only Webhook notifications are sent (not IPN)
+  const notificationUrl = `${process.env.NEXTAUTH_URL}/api/payment/webhook?source_news=webhooks`
 
   const mpPayload = {
     transaction_amount: plan.price,
@@ -67,7 +71,7 @@ export async function POST(request: NextRequest) {
       first_name: user.name.split(' ')[0],
       last_name: user.name.split(' ').slice(1).join(' ') || 'Cliente',
     },
-    notification_url: `${process.env.NEXTAUTH_URL}/api/payment/webhook`,
+    notification_url: notificationUrl,
     metadata: {
       subscription_id: subscription.id,
       user_id: userId,
