@@ -1,0 +1,76 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import bcrypt from 'bcryptjs'
+
+export async function GET(request: NextRequest) {
+  const session = await getServerSession(authOptions)
+  const user = session?.user
+  if (!session || !['ADMIN', 'RESELLER'].includes(user?.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const page = parseInt(new URL(request.url).searchParams.get('page') || '1')
+  const limit = 20
+  const resellerId = user.id
+
+  const [subs, total] = await Promise.all([
+    prisma.subscription.findMany({
+      where: { resellerId },
+      include: {
+        user: { select: { id: true, name: true, email: true, active: true } },
+        plan: { select: { name: true, price: true, interval: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.subscription.count({ where: { resellerId } }),
+  ])
+
+  return NextResponse.json({ subscriptions: subs, total })
+}
+
+export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions)
+  const reseller = session?.user
+  if (!session || !['ADMIN', 'RESELLER'].includes(reseller?.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const body = await request.json()
+
+  // Create user + subscription
+  const hashed = await bcrypt.hash(body.password || 'mudar123', 12)
+
+  const newUser = await prisma.user.create({
+    data: {
+      name: body.name,
+      email: body.email,
+      password: hashed,
+      role: 'CLIENT',
+      active: true,
+    },
+  })
+
+  const plan = await prisma.plan.findUnique({ where: { id: body.planId } })
+  if (!plan) return NextResponse.json({ error: 'Plan not found' }, { status: 404 })
+
+  const expiresAt = new Date()
+  expiresAt.setDate(expiresAt.getDate() + plan.durationDays)
+
+  const sub = await prisma.subscription.create({
+    data: {
+      userId: newUser.id,
+      planId: body.planId,
+      status: 'ACTIVE',
+      expiresAt,
+      resellerId: reseller.id,
+      username: body.username || newUser.email,
+      password: body.iptv_password || Math.random().toString(36).slice(2, 10),
+    },
+  })
+
+  return NextResponse.json({ user: newUser, subscription: sub }, { status: 201 })
+}

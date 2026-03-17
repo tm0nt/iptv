@@ -1,0 +1,9 @@
+# Cached channel logos (downloaded at import time)
+/public/logos/*.jpg
+/public/logos/*.jpeg
+/public/logos/*.png
+/public/logos/*.webp
+/public/logos/*.gif
+/public/logos/*.svg
+.next/
+node_modules/

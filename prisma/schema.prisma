@@ -1,0 +1,274 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  RESELLER
+  CLIENT
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+  TRIAL
+  PENDING_PAYMENT
+}
+
+enum PlanInterval {
+  MONTHLY
+  QUARTERLY
+  SEMIANNUAL
+  ANNUAL
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  EXPIRED
+}
+
+enum ContentType {
+  LIVE
+  MOVIE
+  SERIES
+  RADIO
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  password      String
+  role          Role      @default(CLIENT)
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  subscriptions     Subscription[]
+  payments          Payment[]
+  referralCode      String?   @unique
+  commissionRate    Float     @default(0.20)
+  parentId          String?
+  parent            User?     @relation("ResellerTree", fields: [parentId], references: [id])
+  children          User[]    @relation("ResellerTree")
+  clientsAsReseller Subscription[] @relation("ResellerSubscriptions")
+  affiliateClicks   AffiliateClick[]
+  payouts           Payout[]
+
+  @@map("users")
+}
+
+model Plan {
+  id           String       @id @default(cuid())
+  name         String
+  description  String?
+  price        Float
+  interval     PlanInterval @default(MONTHLY)
+  durationDays Int          @default(30)
+  maxDevices   Int          @default(1)
+  active       Boolean      @default(true)
+  featured     Boolean      @default(false)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  subscriptions Subscription[]
+  payments      Payment[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id          String             @id @default(cuid())
+  userId      String
+  user        User               @relation(fields: [userId], references: [id])
+  planId      String
+  plan        Plan               @relation(fields: [planId], references: [id])
+  status      SubscriptionStatus @default(PENDING_PAYMENT)
+  startsAt    DateTime           @default(now())
+  expiresAt   DateTime
+  autoRenew   Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  resellerId  String?
+  reseller    User?   @relation("ResellerSubscriptions", fields: [resellerId], references: [id])
+
+  username    String?
+  password    String?
+  payment     Payment?
+
+  @@map("subscriptions")
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id])
+  planId         String
+  plan           Plan          @relation(fields: [planId], references: [id])
+  subscriptionId String?       @unique
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
+  resellerId     String?
+
+  mpPaymentId    String?       @unique
+  mpStatus       String        @default("pending")
+  pixCode        String?       @db.Text
+  pixQRCode      String?       @db.Text
+  amount         Float
+  status         PaymentStatus @default(PENDING)
+  expiresAt      DateTime
+  paidAt         DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@map("payments")
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  slug      String   @unique
+  icon      String?
+  order     Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  channels  Channel[]
+
+  @@map("categories")
+}
+
+model Channel {
+  id           String      @id @default(cuid())
+  uuid         String      @unique
+  name         String
+  tvgId        String?
+  tvgName      String?
+  logoUrl      String?
+  streamUrl    String
+  categoryId   String?
+  category     Category?   @relation(fields: [categoryId], references: [id])
+  groupTitle   String?
+  contentType  ContentType @default(LIVE)
+  active       Boolean     @default(true)
+  order        Int         @default(0)
+  isFeatured   Boolean     @default(false)
+  viewCount    Int         @default(0)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  // Series linkage — episode channels link to an Episode
+  episodeId    String?
+  episode      Episode?    @relation(fields: [episodeId], references: [id])
+
+  @@index([name])
+  @@index([categoryId])
+  @@index([active])
+  @@index([groupTitle])
+  @@index([contentType])
+  @@index([episodeId])
+  @@map("channels")
+}
+
+// ── VOD Series structure ──────────────────────────────────────────────────────
+
+model Series {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  posterUrl   String?
+  backdropUrl String?
+  description String?
+  year        Int?
+  genre       String?         // e.g. "Netflix", "HBO", "Drama"
+  provider    String?         // streaming provider from group-title
+  active      Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  seasons     Season[]
+
+  @@index([title])
+  @@index([provider])
+  @@index([genre])
+  @@map("series")
+}
+
+model Season {
+  id           String   @id @default(cuid())
+  seriesId     String
+  series       Series   @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  seasonNumber Int
+  title        String?
+  posterUrl    String?
+  createdAt    DateTime @default(now())
+
+  episodes     Episode[]
+
+  @@unique([seriesId, seasonNumber])
+  @@index([seriesId])
+  @@map("seasons")
+}
+
+model Episode {
+  id            String   @id @default(cuid())
+  seasonId      String
+  season        Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  episodeNumber Int
+  title         String?
+  logoUrl       String?
+  createdAt     DateTime @default(now())
+
+  // A channel (stream) backs each episode
+  channels      Channel[]
+
+  @@unique([seasonId, episodeNumber])
+  @@index([seasonId])
+  @@map("episodes")
+}
+
+// ── Affiliate / Reseller ──────────────────────────────────────────────────────
+
+model AffiliateClick {
+  id          String   @id @default(cuid())
+  resellerId  String
+  reseller    User     @relation(fields: [resellerId], references: [id])
+  ipAddress   String?
+  userAgent   String?
+  converted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@map("affiliate_clicks")
+}
+
+model Payout {
+  id          String    @id @default(cuid())
+  resellerId  String
+  reseller    User      @relation(fields: [resellerId], references: [id])
+  amount      Float
+  status      String    @default("PENDING")
+  reference   String?
+  paidAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@map("payouts")
+}
+
+model SystemConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("system_config")
+}
