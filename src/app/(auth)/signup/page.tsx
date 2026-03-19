@@ -10,6 +10,7 @@ import { cn, formatCurrency } from '@/lib/utils'
 import { useBranding } from '@/hooks/useBranding'
 import { BrandLogo } from '@/components/BrandLogo'
 import { Skeleton } from '@/components/ui/skeleton'
+import { AuthBackdrop } from '@/components/auth/AuthBackdrop'
 
 interface Plan {
   id: string
@@ -260,16 +261,7 @@ function SignupPageContent() {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div
-          className="absolute top-[-30vh] right-[-20vw] w-[60vw] h-[60vw] rounded-full opacity-[0.06]"
-          style={{ background: 'radial-gradient(circle, #63d995 0%, transparent 70%)' }}
-        />
-        <div
-          className="absolute bottom-[-20vh] left-[-15vw] w-[40vw] h-[40vw] rounded-full opacity-[0.04]"
-          style={{ background: 'radial-gradient(circle, #3ea66c 0%, transparent 70%)' }}
-        />
-      </div>
+      <AuthBackdrop />
 
       {mounted && (
         <button
@@ -410,9 +402,6 @@ function SignupPageContent() {
               <div className="space-y-3">
                 <div>
                   <p className="text-[18px] font-semibold text-foreground">Escolha seu plano</p>
-                  <p className="text-[12px] text-muted-foreground mt-1">
-                    No desktop esta area fica ao lado. No mobile ela desce abaixo dos dados.
-                  </p>
                 </div>
 
                 {plansLoading ? (

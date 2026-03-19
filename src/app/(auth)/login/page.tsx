@@ -8,6 +8,7 @@ import { Eye, EyeOff, Sun, Moon, Tv2, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useBranding } from '@/hooks/useBranding'
 import { BrandLogo } from '@/components/BrandLogo'
+import { AuthBackdrop } from '@/components/auth/AuthBackdrop'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,13 +55,7 @@ function LoginPageContent() {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
-      {/* Subtle background */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-30vh] right-[-20vw] w-[60vw] h-[60vw] rounded-full opacity-[0.06]"
-          style={{ background: 'radial-gradient(circle, #63d995 0%, transparent 70%)' }} />
-        <div className="absolute bottom-[-20vh] left-[-15vw] w-[40vw] h-[40vw] rounded-full opacity-[0.04]"
-          style={{ background: 'radial-gradient(circle, #3ea66c 0%, transparent 70%)' }} />
-      </div>
+      <AuthBackdrop />
 
       {/* Theme toggle */}
       {mounted && (
