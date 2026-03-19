@@ -8,8 +8,11 @@ import {
   LayoutDashboard, Users, CreditCard, Tv, UserCheck,
   Settings, LogOut, Sun, Moon, Menu, X, Tv2, BarChart3,
   Upload, Zap,
+  ScrollText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useBranding } from '@/hooks/useBranding'
+import { BrandLogo } from '@/components/BrandLogo'
 
 const ADMIN_NAV = [
   { href: '/admin',                       label: 'Visão Geral',     icon: LayoutDashboard, exact: true },
@@ -19,6 +22,7 @@ const ADMIN_NAV = [
   { href: '/admin/channels',              label: 'Canais',          icon: Tv },
   { href: '/admin/channels/categorize',   label: 'Auto-categorizar', icon: Zap },
   { href: '/admin/import',                label: 'Importar M3U',    icon: Upload },
+  { href: '/admin/auditoria',             label: 'Auditoria',       icon: ScrollText },
   { href: '/admin/settings',              label: 'Ajustes',         icon: Settings },
 ]
 const RESELLER_NAV = [
@@ -31,6 +35,7 @@ interface Props { role: string; user: { name?: string | null; email?: string | n
 
 export function AdminSidebar({ role, user }: Props) {
   const pathname = usePathname()
+  const branding = useBranding()
   const { resolvedTheme, setTheme } = useTheme()
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -44,13 +49,20 @@ export function AdminSidebar({ role, user }: Props) {
     <div className="flex flex-col h-full py-4">
       <div className="px-4 mb-5">
         <div className="flex items-center gap-2.5 px-2">
-          <div className="w-8 h-8 rounded-xl bg-[var(--apple-blue)] flex items-center justify-center shadow-sm">
-            <Tv2 className="w-4 h-4 text-white" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-foreground leading-none">StreamBox Pro</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">{title}</p>
-          </div>
+          {branding.siteLogoUrl ? (
+            <BrandLogo
+              alt={branding.siteShortName}
+              lightSrc={branding.siteLogoLightUrl}
+              darkSrc={branding.siteLogoDarkUrl}
+              lightClassName="h-7"
+              darkClassName="h-7"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-xl bg-[var(--apple-blue)] flex items-center justify-center shadow-sm">
+              <Tv2 className="w-4 h-4 text-white" />
+            </div>
+          )}
+          <p className="text-[11px] text-muted-foreground mt-0.5">{title}</p>
         </div>
       </div>
 
@@ -105,9 +117,19 @@ export function AdminSidebar({ role, user }: Props) {
       </aside>
       <header className="md:hidden fixed top-0 inset-x-0 z-50 h-14 nav-glass px-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-[var(--apple-blue)] flex items-center justify-center">
-            <Tv2 className="w-3.5 h-3.5 text-white" />
-          </div>
+          {branding.siteLogoUrl ? (
+            <BrandLogo
+              alt={branding.siteShortName}
+              lightSrc={branding.siteLogoLightUrl}
+              darkSrc={branding.siteLogoDarkUrl}
+              lightClassName="h-6"
+              darkClassName="h-6"
+            />
+          ) : (
+            <div className="w-7 h-7 rounded-lg bg-[var(--apple-blue)] flex items-center justify-center">
+              <Tv2 className="w-3.5 h-3.5 text-white" />
+            </div>
+          )}
           <span className="text-[14px] font-semibold">{title}</span>
         </div>
         <button onClick={() => setMobileOpen(v => !v)} className="btn-ghost p-2">
@@ -118,7 +140,7 @@ export function AdminSidebar({ role, user }: Props) {
         <>
           <div className="md:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
             onClick={() => setMobileOpen(false)} />
-          <aside className="md:hidden fixed left-0 top-14 bottom-0 w-64 z-50 sidebar border-r border-border animate-fade-in">
+          <aside className="md:hidden fixed left-0 top-14 bottom-0 w-64 z-50 sidebar animate-fade-in">
             <Sidebar />
           </aside>
         </>

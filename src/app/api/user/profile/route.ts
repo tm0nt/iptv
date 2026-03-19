@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
+import { getAuditRequestContext, logAuditEvent } from '@/lib/audit'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -30,6 +31,7 @@ export async function PATCH(request: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const userId = session.user.id
+  const { ipAddress, userAgent } = getAuditRequestContext(request)
   const body   = await request.json()
 
   const data: any = {}
@@ -57,5 +59,20 @@ export async function PATCH(request: NextRequest) {
     data,
     select: { id: true, name: true, email: true },
   })
+
+  await logAuditEvent({
+    action: 'user.profile.updated',
+    entityType: 'USER',
+    entityId: updated.id,
+    message: 'Usuário atualizou o próprio perfil',
+    actor: session.user,
+    ipAddress,
+    userAgent,
+    metadata: {
+      changedName: !!data.name,
+      changedPassword: !!data.password,
+    },
+  })
+
   return NextResponse.json({ user: updated })
 }

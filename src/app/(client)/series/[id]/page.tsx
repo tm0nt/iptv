@@ -3,11 +3,12 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Image from 'next/image'
 import {
-  Play, ChevronLeft, Loader2, Film, ChevronDown,
+  Play, ChevronLeft, Film, ChevronDown,
   Clock, Tv
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SeriesDetail, SeasonItem, EpisodeItem } from '@/types'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export default function SeriesDetailPage() {
   const params  = useParams()
@@ -34,8 +35,28 @@ export default function SeriesDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-[80vh] flex items-center justify-center">
-        <Loader2 className="w-7 h-7 animate-spin text-muted-foreground" />
+      <div className="min-h-screen pb-16">
+        <div className="px-4 md:px-6 pt-6">
+          <Skeleton className="h-[50vh] md:h-[60vh] rounded-[28px]" />
+        </div>
+        <div className="sticky top-14 z-30 bg-background/90 backdrop-blur-md border-b border-border/50 mt-6">
+          <div className="flex gap-2 overflow-x-auto px-4 md:px-6 py-2.5">
+            {[1, 2, 3, 4].map(i => (
+              <Skeleton key={i} className="h-8 w-16 rounded-full flex-shrink-0" />
+            ))}
+          </div>
+        </div>
+        <div className="px-4 md:px-6 mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <div key={index} className="rounded-xl border border-border bg-secondary/30 p-3 flex items-center gap-3">
+              <Skeleton className="h-14 w-20 rounded-lg flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-3 w-20 rounded-full" />
+                <Skeleton className="h-3 w-32 rounded-full" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }

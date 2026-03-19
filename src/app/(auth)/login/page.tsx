@@ -3,11 +3,15 @@ import { useState, useEffect } from 'react'
 import { signIn, useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useTheme } from 'next-themes'
+import Link from 'next/link'
 import { Eye, EyeOff, Sun, Moon, Tv2, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useBranding } from '@/hooks/useBranding'
+import { BrandLogo } from '@/components/BrandLogo'
 
 export default function LoginPage() {
   const { data: session, status } = useSession()
+  const branding = useBranding()
   const router       = useRouter()
   const searchParams = useSearchParams()
   const { resolvedTheme, setTheme } = useTheme()
@@ -43,9 +47,9 @@ export default function LoginPage() {
       {/* Subtle background */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-[-30vh] right-[-20vw] w-[60vw] h-[60vw] rounded-full opacity-[0.06]"
-          style={{ background: 'radial-gradient(circle, #007AFF 0%, transparent 70%)' }} />
+          style={{ background: 'radial-gradient(circle, #63d995 0%, transparent 70%)' }} />
         <div className="absolute bottom-[-20vh] left-[-15vw] w-[40vw] h-[40vw] rounded-full opacity-[0.04]"
-          style={{ background: 'radial-gradient(circle, #5856D6 0%, transparent 70%)' }} />
+          style={{ background: 'radial-gradient(circle, #3ea66c 0%, transparent 70%)' }} />
       </div>
 
       {/* Theme toggle */}
@@ -63,10 +67,24 @@ export default function LoginPage() {
       <div className="relative w-full max-w-[360px] animate-fade-in">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-[60px] h-[60px] rounded-[18px] bg-[var(--apple-blue)] flex items-center justify-center mb-4 shadow-xl shadow-blue-500/20">
-            <Tv2 className="w-7 h-7 text-white" />
-          </div>
-          <h1 className="text-[22px] font-semibold text-foreground tracking-tight">StreamBox Pro</h1>
+          {branding.siteLogoUrl ? (
+            <div className="mb-3">
+              <BrandLogo
+                alt={branding.siteShortName}
+                lightSrc={branding.siteLogoLightUrl}
+                darkSrc={branding.siteLogoDarkUrl}
+                lightClassName="h-12"
+                darkClassName="h-12"
+              />
+            </div>
+          ) : (
+            <div className="w-[60px] h-[60px] rounded-[18px] bg-[var(--apple-blue)] flex items-center justify-center mb-4 shadow-xl shadow-green-500/20">
+              <Tv2 className="w-7 h-7 text-white" />
+            </div>
+          )}
+          {!branding.siteLogoUrl && (
+            <h1 className="text-[22px] font-semibold text-foreground tracking-tight">{branding.siteName}</h1>
+          )}
           <p className="text-[13px] text-muted-foreground mt-0.5">Entre na sua conta</p>
         </div>
 
@@ -133,10 +151,20 @@ export default function LoginPage() {
               </p>
             </div>
           )}
+
+          <p className="text-center text-[13px] text-muted-foreground mt-4">
+            Ainda nao tem conta?{' '}
+            <Link
+              href={searchParams.get('ref') ? `/signup?ref=${encodeURIComponent(searchParams.get('ref')!)}` : '/signup'}
+              className="text-[var(--apple-blue)] font-medium hover:underline"
+            >
+              Criar conta
+            </Link>
+          </p>
         </div>
 
         <p className="text-center text-[12px] text-muted-foreground mt-6">
-          © {new Date().getFullYear()} StreamBox Pro
+          © {new Date().getFullYear()} {branding.siteName}
         </p>
       </div>
     </div>

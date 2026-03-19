@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { parseM3U, extractSeriesInfo, slugify } from '@/lib/m3u-parser'
 import type { ParsedChannel } from '@/lib/m3u-parser'
+import { getAuditRequestContext, logAuditEvent } from '@/lib/audit'
 
 const MAX_SIZE_PER_FILE = 200 * 1024 * 1024
 
@@ -10,6 +11,7 @@ export async function POST(request: NextRequest) {
   const admin = await requireAdmin()
   if (!admin) return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
 
+  const { ipAddress, userAgent } = getAuditRequestContext(request)
   const qurl    = new URL(request.url)
   const mode    = qurl.searchParams.get('mode')    || 'merge'
   const preview = qurl.searchParams.get('preview') === '1'
@@ -36,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     for (const u of urls) {
       try {
-        const res = await fetch(u, { headers: { 'User-Agent': 'StreamBox-Importer/1.0' } })
+        const res = await fetch(u, { headers: { 'User-Agent': 'IPTV-Importer/1.0' } })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         contents.push({ name: u, content: await res.text() })
       } catch (e: unknown) {
@@ -61,7 +63,7 @@ export async function POST(request: NextRequest) {
 
   if (allChannels.length === 0) return NextResponse.json({ error: 'Nenhum canal encontrado' }, { status: 400 })
 
-  const uniqueGroups = [...new Set(allChannels.map(c => c.groupTitle).filter(Boolean))]
+  const uniqueGroups = Array.from(new Set(allChannels.map(c => c.groupTitle).filter(Boolean)))
   const seriesChannels = allChannels.filter(c => c.contentType === 'SERIES')
   const movieChannels  = allChannels.filter(c => c.contentType === 'MOVIE')
   const liveChannels   = allChannels.filter(c => c.contentType === 'LIVE')
@@ -170,7 +172,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Create Series, Seasons, Episodes in DB
-  for (const [, data] of seriesMap) {
+  for (const data of Array.from(seriesMap.values())) {
     try {
       const seriesSlug = slugify(data.title)
 
@@ -198,7 +200,7 @@ export async function POST(request: NextRequest) {
         seasonMap.get(ep.season)!.push(ep)
       }
 
-      for (const [seasonNum, episodes] of seasonMap) {
+      for (const [seasonNum, episodes] of Array.from(seasonMap.entries())) {
         // Upsert Season
         const season = await prisma.season.upsert({
           where: {
@@ -252,7 +254,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({
+  const response = {
     success: true,
     mode,
     files: fileStats,
@@ -262,5 +264,17 @@ export async function POST(request: NextRequest) {
     seasons:  { created: createdSeasons },
     episodes: { created: createdEpisodes },
     elapsed:  `${((Date.now() - start) / 1000).toFixed(1)}s`,
+  }
+
+  await logAuditEvent({
+    action: 'admin.import.completed',
+    entityType: 'IMPORT',
+    message: `Importacao M3U concluida em modo ${mode}`,
+    actor: admin,
+    ipAddress,
+    userAgent,
+    metadata: response,
   })
+
+  return NextResponse.json(response)
 }

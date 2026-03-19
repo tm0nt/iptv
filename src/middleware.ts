@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
 const PUBLIC = [
-  '/login', '/api/auth', '/api/affiliate',
+  '/login', '/signup', '/api/auth', '/api/affiliate', '/api/plans',
+  '/api/payment/gateway',
   '/api/payment/webhook',
 
   '/_next', '/icons', '/manifest.json', '/sw.js', '/favicon',
@@ -10,6 +11,7 @@ const PUBLIC = [
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+  if (/\.[a-zA-Z0-9]+$/.test(pathname)) return NextResponse.next()
   if (PUBLIC.some(p => pathname.startsWith(p))) return NextResponse.next()
 
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET })
@@ -23,5 +25,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.[a-zA-Z0-9]+$).*)'],
 }

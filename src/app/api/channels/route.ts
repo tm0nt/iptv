@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getAuditRequestContext, logAuditEvent } from '@/lib/audit'
 
 /**
  * GET /api/channels
@@ -23,6 +24,7 @@ export async function GET(request: NextRequest) {
   }
 
   const userId = session.user.id
+  const ctx = getAuditRequestContext(request)
   const sub = await prisma.subscription.findFirst({
     where: { userId, status: 'ACTIVE', expiresAt: { gt: new Date() } },
   })
@@ -94,6 +96,24 @@ export async function GET(request: NextRequest) {
   const nonEmpty = categories.filter(c => c.channels.length > 0)
 
   const hasMore = (page + 1) * limit < totalCategories
+
+  if (page === 0 || cat || type !== 'live') {
+    await logAuditEvent({
+      action: 'catalog.channels.viewed',
+      entityType: 'CATALOG',
+      message: 'Catalogo de canais consultado',
+      actor: session.user,
+      ...ctx,
+      metadata: {
+        page,
+        limit,
+        type,
+        category: cat || null,
+        categoriesReturned: nonEmpty.length,
+        totalCategories,
+      },
+    })
+  }
 
   return NextResponse.json({
     categories: nonEmpty,

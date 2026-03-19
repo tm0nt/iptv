@@ -1,7 +1,10 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import { Search, UserPlus, Loader2, X, Check, QrCode, Copy } from 'lucide-react'
 import { formatDate, formatCurrency, cn } from '@/lib/utils'
+import { TableSkeleton } from '@/components/ui/skeleton'
+import { PageIntro } from '@/components/admin/PageIntro'
 
 interface SubRow {
   id: string; status: string; expiresAt: string; createdAt: string
@@ -14,6 +17,7 @@ const emptyForm = { name: '', email: '', password: '', planId: '' }
 type ModalStep = 'form' | 'pix' | 'done'
 
 export default function ResellerClients() {
+  const { data: session } = useSession()
   const [subs,      setSubs]      = useState<SubRow[]>([])
   const [plans,     setPlans]     = useState<Plan[]>([])
   const [loading,   setLoading]   = useState(true)
@@ -33,7 +37,9 @@ export default function ResellerClients() {
     ])
     setSubs(sr.subscriptions || []); setPlans(pr.plans || []); setLoading(false)
   }
-  useEffect(load, [])
+  useEffect(() => {
+    load()
+  }, [])
 
   async function handleAdd() {
     setSaving(true)
@@ -48,7 +54,11 @@ export default function ResellerClients() {
       // Generate PIX
       const pr = await fetch('/api/payment/pix', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId: form.planId }),
+        body: JSON.stringify({
+          planId: form.planId,
+          resellerId: (session?.user as any)?.id,
+          clientUserId: data.user?.id,
+        }),
       })
       const pd = await pr.json()
       if (pr.ok && pd.pixCode) { setPixData(pd); setStep('pix') }
@@ -67,70 +77,73 @@ export default function ResellerClients() {
   const active = subs.filter(s => s.status === 'ACTIVE').length
 
   return (
-    <div className="p-4 md:p-6 pt-20 md:pt-8 max-w-5xl">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-        <div>
-          <h1 className="text-[20px] font-semibold text-foreground">Meus Clientes</h1>
-          <p className="text-[13px] text-muted-foreground mt-0.5">
-            <span className="text-[var(--apple-green)] font-medium">{active} ativos</span>
-            {subs.length - active > 0 && ` · ${subs.length - active} inativos`}
-          </p>
+    <div className="p-4 md:p-8 pt-20 md:pt-10 max-w-7xl space-y-6">
+      <PageIntro
+        eyebrow="Revendedor"
+        title="Meus clientes"
+        description={<><span className="text-[var(--apple-green)] font-medium">{active} ativos</span>{subs.length - active > 0 && ` · ${subs.length - active} inativos`}</>}
+        actions={(
+          <button onClick={() => { setModal(true); setStep('form') }} className="btn-primary py-2.5 px-4 text-[13px]">
+            <UserPlus className="w-3.5 h-3.5" /> Novo Cliente
+          </button>
+        )}
+      />
+
+      <div className="surface rounded-[30px] p-5 md:p-6">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar cliente..." className="field-input pl-9" />
         </div>
-        <button onClick={() => { setModal(true); setStep('form') }} className="btn-primary py-2 px-4 text-[13px]">
-          <UserPlus className="w-3.5 h-3.5" /> Novo Cliente
-        </button>
       </div>
 
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <input value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Buscar cliente..." className="field-input pl-9" />
-      </div>
-
-      <div className="surface rounded-2xl overflow-hidden">
+      <div className="surface rounded-[30px] overflow-hidden">
+        <div className="px-5 md:px-6 py-4">
+          <p className="text-[16px] font-semibold text-foreground">Base de clientes</p>
+          <p className="text-[13px] text-muted-foreground mt-1">Consulte status, plano e vencimento em um só lugar.</p>
+        </div>
         <div className="overflow-x-auto">
-          <table className="w-full data-table">
-            <thead><tr>
-              {['Cliente', 'Plano', 'Status', 'Valor', 'Expira'].map(h => <th key={h}>{h}</th>)}
-            </tr></thead>
-            <tbody>
-              {loading && (
-                <tr><td colSpan={5} className="py-8 text-center">
-                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground mx-auto" />
-                </td></tr>
-              )}
-              {!loading && filtered.length === 0 && (
-                <tr><td colSpan={5} className="py-8 text-center text-muted-foreground text-[13px]">
-                  Nenhum cliente encontrado
-                </td></tr>
-              )}
-              {filtered.map(sub => (
-                <tr key={sub.id}>
-                  <td>
-                    <div className="flex items-center gap-3">
-                      <div className="w-7 h-7 rounded-full bg-secondary border border-border flex items-center justify-center text-[11px] font-semibold flex-shrink-0">
-                        {sub.user.name.charAt(0).toUpperCase()}
+          {loading ? (
+            <TableSkeleton columns={5} rows={6} />
+          ) : (
+            <table className="w-full data-table">
+              <thead><tr>
+                {['Cliente', 'Plano', 'Status', 'Valor', 'Expira'].map(h => <th key={h}>{h}</th>)}
+              </tr></thead>
+              <tbody>
+                {filtered.length === 0 && (
+                  <tr><td colSpan={5} className="py-8 text-center text-muted-foreground text-[13px]">
+                    Nenhum cliente encontrado
+                  </td></tr>
+                )}
+                {filtered.map(sub => (
+                  <tr key={sub.id}>
+                    <td>
+                      <div className="flex items-center gap-3">
+                        <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-[11px] font-semibold flex-shrink-0">
+                          {sub.user.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-medium text-foreground text-[13px]">{sub.user.name}</p>
+                          <p className="text-[12px] text-muted-foreground">{sub.user.email}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-foreground text-[13px]">{sub.user.name}</p>
-                        <p className="text-[12px] text-muted-foreground">{sub.user.email}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="text-muted-foreground text-[13px]">{sub.plan.name}</td>
-                  <td>
-                    <span className={cn('badge',
-                      sub.status === 'ACTIVE' ? 'badge-green' :
-                      sub.status === 'PENDING_PAYMENT' ? 'badge-amber' : 'badge-red')}>
-                      {{ ACTIVE:'Ativo', EXPIRED:'Expirado', PENDING_PAYMENT:'Aguard. PIX', SUSPENDED:'Suspenso' }[sub.status] || sub.status}
-                    </span>
-                  </td>
-                  <td className="font-medium text-foreground text-[13px]">{formatCurrency(sub.plan.price)}</td>
-                  <td className="text-[12px] text-muted-foreground">{formatDate(sub.expiresAt)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    </td>
+                    <td className="text-muted-foreground text-[13px]">{sub.plan.name}</td>
+                    <td>
+                      <span className={cn('badge',
+                        sub.status === 'ACTIVE' ? 'badge-green' :
+                        sub.status === 'PENDING_PAYMENT' ? 'badge-amber' : 'badge-red')}>
+                        {{ ACTIVE:'Ativo', EXPIRED:'Expirado', PENDING_PAYMENT:'Aguard. PIX', SUSPENDED:'Suspenso' }[sub.status] || sub.status}
+                      </span>
+                    </td>
+                    <td className="font-medium text-foreground text-[13px]">{formatCurrency(sub.plan.price)}</td>
+                    <td className="text-[12px] text-muted-foreground">{formatDate(sub.expiresAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 

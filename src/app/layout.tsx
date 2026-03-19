@@ -3,21 +3,28 @@ import { ThemeProvider } from '@/components/ThemeProvider'
 import { SessionProvider } from '@/components/SessionProvider'
 import { Toaster } from '@/components/ui/toaster'
 import { PWARegister } from '@/components/PWARegister'
+import { getPublicSystemConfig } from '@/lib/system-config'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'StreamBox Pro',
+  title: 'IPTV',
   description: 'IPTV Premium — Canais, Filmes e Séries em HD',
-  manifest: '/manifest.json',
-  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'StreamBox' },
+  manifest: '/manifest.webmanifest',
+  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'IPTV' },
   icons: { icon: '/icons/icon-192.png', apple: '/icons/icon-192.png' },
 }
-export const viewport: Viewport = {
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)',  color: '#000000' },
-  ],
-  width: 'device-width', initialScale: 1, maximumScale: 1,
+
+export async function generateViewport(): Promise<Viewport> {
+  const branding = await getPublicSystemConfig()
+  return {
+    themeColor: [
+      { media: '(prefers-color-scheme: light)', color: branding.primaryColor || '#73de90' },
+      { media: '(prefers-color-scheme: dark)', color: '#123126' },
+    ],
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+  }
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

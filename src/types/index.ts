@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Global TypeScript types for StreamBox Pro
+// Global TypeScript types for IPTV
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { DefaultSession, DefaultUser } from 'next-auth'

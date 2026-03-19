@@ -59,7 +59,7 @@ export async function cacheLogo(originalUrl: string | null): Promise<string | nu
 
     const res = await fetch(originalUrl, {
       signal: ctrl.signal,
-      headers: { 'User-Agent': 'StreamBox-LogoCache/1.0' },
+      headers: { 'User-Agent': 'IPTV-LogoCache/1.0' },
     })
     clearTimeout(tid)
 

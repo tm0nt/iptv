@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { Plus, Pencil, Trash2, Star, Loader2, X, Check } from 'lucide-react'
 import { formatCurrency, cn } from '@/lib/utils'
+import { PageIntro } from '@/components/admin/PageIntro'
 
 interface Plan {
   id: string; name: string; description?: string; price: number
@@ -63,27 +64,27 @@ export default function AdminPlans() {
   }
 
   return (
-    <div className="p-4 md:p-6 pt-20 md:pt-8 max-w-5xl">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-[20px] font-semibold text-foreground">Planos</h1>
-          <p className="text-[13px] text-muted-foreground mt-0.5">Gerencie os planos de assinatura</p>
-        </div>
-        <button onClick={openNew} className="btn-primary py-2 px-4 text-[13px]">
-          <Plus className="w-3.5 h-3.5" /> Novo Plano
-        </button>
-      </div>
+    <div className="p-4 md:p-8 pt-20 md:pt-10 max-w-7xl space-y-6">
+      <PageIntro
+        eyebrow="Admin"
+        title="Planos de assinatura"
+        description="Gerencie preços, destaque comercial, duração e capacidade de dispositivos dos planos."
+        actions={(
+          <button onClick={openNew} className="btn-primary py-2.5 px-4 text-[13px]">
+            <Plus className="w-3.5 h-3.5" /> Novo Plano
+          </button>
+        )}
+      />
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[1,2,3].map(i => <div key={i} className="surface rounded-2xl p-5 h-48 skeleton" />)}
+          {[1,2,3].map(i => <div key={i} className="surface rounded-[30px] p-5 h-48 skeleton" />)}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {plans.map(plan => (
             <div key={plan.id}
-              className={cn('surface rounded-2xl p-5 relative transition-all',
+              className={cn('surface rounded-[30px] p-5 relative transition-all',
                 !plan.active && 'opacity-50',
                 plan.featured && 'ring-2 ring-[var(--apple-blue)]/30',
               )}>
@@ -127,7 +128,7 @@ export default function AdminPlans() {
             </div>
           ))}
           {plans.length === 0 && (
-            <div className="col-span-3 surface rounded-2xl p-12 text-center text-muted-foreground text-[13px]">
+            <div className="col-span-3 surface rounded-[30px] p-12 text-center text-muted-foreground text-[13px]">
               Nenhum plano criado ainda. Crie o primeiro!
             </div>
           )}

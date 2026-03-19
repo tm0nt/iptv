@@ -6,6 +6,8 @@ import {
   QrCode, Clock, CheckCircle2, Zap,
 } from 'lucide-react'
 import { cn, formatCurrency } from '@/lib/utils'
+import { useBranding } from '@/hooks/useBranding'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface Plan {
   id: string; name: string; description?: string | null
@@ -21,6 +23,7 @@ const INTERVAL_LABEL: Record<string, string> = {
 }
 
 export function SubscriptionModal({ refCode }: { refCode?: string }) {
+  const branding = useBranding()
   const [step,         setStep]         = useState<Step>('plans')
   const [plans,        setPlans]        = useState<Plan[]>([])
   const [selected,     setSelected]     = useState<Plan | null>(null)
@@ -66,7 +69,10 @@ export function SubscriptionModal({ refCode }: { refCode?: string }) {
       const res = await fetch('/api/payment/pix', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId: selected.id, resellerId: refCode }),
+        body: JSON.stringify({
+          planId: selected.id,
+          referralCode: refCode,
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Erro ao gerar PIX')
@@ -106,14 +112,28 @@ export function SubscriptionModal({ refCode }: { refCode?: string }) {
                 <Tv2 className="w-5 h-5 text-[var(--apple-blue)]" />
               </div>
               <div>
-                <h2 className="font-semibold text-foreground">Assinar StreamBox Pro</h2>
+                <h2 className="font-semibold text-foreground">Assinar {branding.siteName}</h2>
                 <p className="text-xs text-muted-foreground">Escolha seu plano para continuar</p>
               </div>
             </div>
 
             {loading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              <div className="space-y-2 mb-5">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div key={index} className="w-full rounded-xl border border-border p-4">
+                    <div className="flex items-center gap-4">
+                      <Skeleton className="h-5 w-5 rounded-full flex-shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-32 rounded-full" />
+                        <Skeleton className="h-3 w-40 rounded-full" />
+                      </div>
+                      <div className="space-y-2 text-right">
+                        <Skeleton className="h-4 w-20 rounded-full" />
+                        <Skeleton className="h-3 w-12 rounded-full" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="space-y-2 mb-5">

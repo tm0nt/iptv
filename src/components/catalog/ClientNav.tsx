@@ -3,9 +3,11 @@ import { useState, useEffect } from 'react'
 import { signOut, useSession } from 'next-auth/react'
 import { useTheme } from 'next-themes'
 import Link from 'next/link'
-import { Tv2, Sun, Moon, LogOut, Search, Menu, X, User, Sparkles } from 'lucide-react'
+import { Sun, Moon, LogOut, Search, Menu, X, User, Check } from 'lucide-react'
 import { SearchModal } from './SearchModal'
 import { cn } from '@/lib/utils'
+import { useBranding } from '@/hooks/useBranding'
+import { BrandLogo } from '@/components/BrandLogo'
 
 const NAV_LINKS = [
   { href: '/watch',              label: 'Início'   },
@@ -17,18 +19,47 @@ const NAV_LINKS = [
 
 export function ClientNav({ user }: { user: { name?: string | null; email?: string | null } }) {
   const { data: session } = useSession()
+  const branding = useBranding()
   const { resolvedTheme, setTheme } = useTheme()
   const [menuOpen,   setMenuOpen]   = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [mounted,    setMounted]    = useState(false)
   const [scrolled,   setScrolled]   = useState(false)
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const [profiles, setProfiles] = useState<Array<{
+    id: string
+    name: string
+    avatarColor?: string
+    status?: 'FREE' | 'CURRENT_SCREEN' | 'OTHER_SCREEN'
+    statusLabel?: string
+  }>>([])
+  const [activeProfileId, setActiveProfileId] = useState<string | null>(null)
 
   useEffect(() => { setMounted(true) }, [])
+
+  useEffect(() => {
+    const cookieName = 'viewer_key'
+    const hasCookie = document.cookie.split('; ').some(entry => entry.startsWith(`${cookieName}=`))
+    if (!hasCookie) {
+      const key = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+      document.cookie = `${cookieName}=${key}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`
+    }
+  }, [])
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10)
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/account/profiles')
+      .then(r => (r.ok ? r.json() : { profiles: [] }))
+      .then(data => {
+        setProfiles(data.profiles || [])
+        setActiveProfileId(data.activeProfileId || null)
+      })
+      .catch(() => {})
   }, [])
 
   // Cmd+K shortcut
@@ -44,12 +75,27 @@ export function ClientNav({ user }: { user: { name?: string | null; email?: stri
   }, [])
 
   const initial = user.name?.charAt(0).toUpperCase() ?? 'U'
+  const activeProfile = profiles.find(profile => profile.id === activeProfileId)
+
+  async function selectProfile(profileId: string) {
+    const res = await fetch('/api/account/profiles', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'select', profileId }),
+    })
+    if (!res.ok) return
+    const data = await res.json()
+    setProfiles(data.profiles || [])
+    setActiveProfileId(profileId)
+    setProfileMenuOpen(false)
+    window.location.reload()
+  }
 
   return (
     <>
       <header
         className={cn(
-          'fixed top-0 inset-x-0 z-50 h-14 transition-all duration-300',
+          'client-nav-header fixed top-0 inset-x-0 z-50 h-14 transition-all duration-300',
           scrolled ? 'nav-glass shadow-sm' : 'bg-transparent',
         )}
       >
@@ -60,18 +106,20 @@ export function ClientNav({ user }: { user: { name?: string | null; email?: stri
 
         <div className="relative h-full flex items-center gap-3 px-4 md:px-6 max-w-[1600px] mx-auto">
           {/* Logo */}
-          <Link href="/watch" className="flex items-center gap-2.5 flex-shrink-0 group">
-            <div className="w-8 h-8 rounded-[10px] bg-[var(--apple-blue)] flex items-center justify-center shadow-lg shadow-blue-500/25 group-hover:scale-105 transition-transform">
-              <Tv2 className="w-4 h-4 text-white" />
-            </div>
-            <span
-              className={cn(
-                'text-[15px] font-bold tracking-tight hidden sm:block transition-colors',
-                scrolled ? 'text-foreground' : 'text-white',
+          <Link href="/watch" className="flex items-center flex-shrink-0 group">
+            <BrandLogo
+              alt={branding.siteShortName}
+              lightSrc={branding.siteLogoLightUrl}
+              darkSrc={branding.siteLogoDarkUrl}
+              lightClassName={cn(
+                'h-8 md:h-9 transition-all',
+                scrolled ? 'opacity-95' : 'brightness-0 invert',
               )}
-            >
-              StreamBox
-            </span>
+              darkClassName={cn(
+                'h-8 md:h-9 transition-all',
+                scrolled ? 'opacity-95' : 'brightness-0 invert',
+              )}
+            />
           </Link>
 
           {/* Desktop nav */}
@@ -92,6 +140,62 @@ export function ClientNav({ user }: { user: { name?: string | null; email?: stri
           </nav>
 
           <div className="flex-1" />
+
+          {profiles.length > 0 && (
+            <div className="hidden md:block relative">
+              <button
+                onClick={() => setProfileMenuOpen(value => !value)}
+                className={cn(
+                  'flex items-center gap-2 rounded-xl px-3 py-1.5 text-[13px] transition-all',
+                  scrolled
+                    ? 'bg-secondary border border-border text-foreground'
+                    : 'bg-white/10 border border-white/15 text-white',
+                )}
+              >
+                <span
+                  className="w-3 h-3 rounded-full shrink-0"
+                  style={{ backgroundColor: activeProfile?.avatarColor || '#73de90' }}
+                />
+                <span>{activeProfile?.name || 'Perfil'}</span>
+              </button>
+
+              {profileMenuOpen && (
+                <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-border bg-background/95 backdrop-blur-xl shadow-xl p-2">
+                  <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    Perfis da conta
+                  </p>
+                  {profiles.map(profile => (
+                    <button
+                      key={profile.id}
+                      onClick={() => selectProfile(profile.id)}
+                      className="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-secondary transition-colors"
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold text-white shrink-0"
+                          style={{ backgroundColor: profile.avatarColor || '#73de90' }}
+                        >
+                          {profile.name.charAt(0).toUpperCase()}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-[13px] font-medium text-foreground truncate">{profile.name}</span>
+                          <span className="block text-[10px] text-muted-foreground truncate">{profile.statusLabel || 'Livre agora'}</span>
+                        </span>
+                      </span>
+                      {profile.id === activeProfileId && <Check className="w-4 h-4 text-[var(--apple-blue)]" />}
+                    </button>
+                  ))}
+                  <Link
+                    href="/profile"
+                    className="mt-1 block rounded-xl px-3 py-2.5 text-[12px] text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+                    onClick={() => setProfileMenuOpen(false)}
+                  >
+                    Gerenciar perfis
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Search pill */}
           <button
@@ -186,7 +290,7 @@ export function ClientNav({ user }: { user: { name?: string | null; email?: stri
         <>
           <div className="lg:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
             onClick={() => setMenuOpen(false)} />
-          <div className="lg:hidden fixed top-14 inset-x-0 z-40 nav-glass border-b border-border/50 py-2 px-4 animate-fade-in">
+          <div className="client-nav-mobile-drawer lg:hidden fixed top-14 inset-x-0 z-40 nav-glass border-b border-border/50 py-2 px-4 animate-fade-in">
             {NAV_LINKS.map(l => (
               <Link
                 key={l.href} href={l.href}
@@ -206,6 +310,36 @@ export function ClientNav({ user }: { user: { name?: string | null; email?: stri
                 Sair
               </button>
             </div>
+            {profiles.length > 0 && (
+              <div className="border-t border-border/50 mt-2 pt-2 px-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground mb-2">
+                  Perfil ativo
+                </p>
+                <div className="space-y-1">
+                  {profiles.map(profile => (
+                    <button
+                      key={profile.id}
+                      onClick={() => selectProfile(profile.id)}
+                      className="w-full flex items-center justify-between rounded-xl px-3 py-2 text-[13px] text-foreground hover:bg-muted transition-colors"
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold text-white shrink-0"
+                          style={{ backgroundColor: profile.avatarColor || '#73de90' }}
+                        >
+                          {profile.name.charAt(0).toUpperCase()}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate">{profile.name}</span>
+                          <span className="block text-[10px] text-muted-foreground truncate">{profile.statusLabel || 'Livre agora'}</span>
+                        </span>
+                      </span>
+                      {profile.id === activeProfileId && <Check className="w-4 h-4 text-[var(--apple-blue)]" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}

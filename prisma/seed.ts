@@ -132,17 +132,17 @@ async function main() {
 
   // ── 3. Admin ───────────────────────────────────────────────────────────────
   const admin = await prisma.user.upsert({
-    where:  { email: 'admin@streambox.pro' },
+    where:  { email: 'admin@iptv.local' },
     update: { name: 'Administrador', password: await bcrypt.hash('admin123', 12), role: Role.ADMIN, active: true },
     create: {
       name:     'Administrador',
-      email:    'admin@streambox.pro',
+      email:    'admin@iptv.local',
       password: await bcrypt.hash('admin123', 12),
       role:     Role.ADMIN,
       active:   true,
     },
   })
-  console.log(`  ✅ Admin  → admin@streambox.pro / admin123`)
+  console.log(`  ✅ Admin  → admin@iptv.local / admin123`)
 
   // ── 4. Revendedores ────────────────────────────────────────────────────────
   const resellersData = [
@@ -391,11 +391,28 @@ async function main() {
 
   // ── 6. Configs do sistema ──────────────────────────────────────────────────
   const configs = [
-    { key: 'site_name',       value: 'StreamBox Pro'         },
+    { key: 'site_name',       value: 'IPTV'                  },
+    { key: 'site_short_name', value: 'IPTV'                  },
+    { key: 'site_logo_url',   value: '/logo-dark.png'        },
+    { key: 'site_logo_dark_url', value: '/logo-dark.png'     },
+    { key: 'site_logo_light_url', value: '/logo-white.png'   },
+    { key: 'primary_color',   value: '#73de90'               },
+    { key: 'featured_channel_uuid', value: ''                },
+    { key: 'featured_banner_url', value: ''                  },
     { key: 'default_plan_id', value: plans.basico.id          },
-    { key: 'support_email',   value: 'admin@streambox.pro'    },
-    { key: 'pix_key',         value: 'admin@streambox.pro'    },
+    { key: 'support_email',   value: 'suporte@iptv.local'     },
+    { key: 'support_whatsapp',value: ''                       },
+    { key: 'pix_key',         value: 'suporte@iptv.local'     },
+    { key: 'mercadopago_access_token', value: ''              },
+    { key: 'expfypay_public_key', value: ''                   },
+    { key: 'expfypay_secret_key', value: ''                   },
+    { key: 'payment_gateway_provider', value: 'mercadopago'   },
+    { key: 'payment_gateway_mode', value: 'single'            },
+    { key: 'payment_gateway_enabled', value: 'mercadopago'    },
+    { key: 'payment_gateway_rotation_cursor', value: '0'      },
     { key: 'commission_default', value: '0.20'               },
+    { key: 'trial_days',      value: '7'                      },
+    { key: 'audit_retention_days', value: '90'                },
   ]
 
   for (const cfg of configs) {
@@ -413,7 +430,7 @@ async function main() {
 ║              ✨ SEED COMPLETO                        ║
 ╠══════════════════════════════════════════════════════╣
 ║  👤 ADMIN                                            ║
-║     admin@streambox.pro          / admin123          ║
+║     admin@iptv.local             / admin123          ║
 ╠══════════════════════════════════════════════════════╣
 ║  🏪 REVENDEDORES                                     ║
 ║     carlos@revenda.com           / carlos123         ║

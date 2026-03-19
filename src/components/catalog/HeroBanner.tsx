@@ -3,9 +3,11 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Play, Info } from 'lucide-react'
 import type { ChannelItem } from '@/components/catalog/CatalogCarousel'
+import { useBranding } from '@/hooks/useBranding'
 
 export function HeroBanner({ channel, category }: { channel: ChannelItem; category: string }) {
   const router = useRouter()
+  const branding = useBranding()
 
   return (
     <div className="relative w-full h-[46vh] md:h-[56vh] bg-[var(--apple-gray-6)] dark:bg-[#0a0a0a] overflow-hidden">
@@ -34,7 +36,7 @@ export function HeroBanner({ channel, category }: { channel: ChannelItem; catego
           {channel.name}
         </h1>
         <p className="text-[13px] text-muted-foreground mb-5">
-          Transmissão ao vivo · Full HD · StreamBox Pro
+          Transmissão ao vivo · Full HD · {branding.siteName}
         </p>
 
         <div className="flex items-center gap-2.5">

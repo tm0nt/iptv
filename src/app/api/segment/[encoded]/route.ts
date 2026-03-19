@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import {
+  authorizePlaybackAccess,
+  getProfileCookieName,
+  getViewerKeyFromRequest,
+  resolveActiveProfile,
+} from '@/lib/account-playback'
 
 export async function GET(
   request: NextRequest,
@@ -15,10 +21,31 @@ export async function GET(
   const userId = session.user.id
   const subscription = await prisma.subscription.findFirst({
     where: { userId, status: 'ACTIVE', expiresAt: { gt: new Date() } },
+    include: { plan: { select: { maxDevices: true } } },
   })
 
   if (!subscription) {
     return NextResponse.json({ error: 'No active subscription' }, { status: 403 })
+  }
+
+  const requestedProfileId = request.cookies.get(getProfileCookieName())?.value || null
+  const { activeProfile } = await resolveActiveProfile(userId, requestedProfileId, subscription.plan?.maxDevices || 1)
+  const viewerKey = getViewerKeyFromRequest(request)
+  if (!activeProfile) {
+    return NextResponse.json({ error: 'Perfil não encontrado' }, { status: 400 })
+  }
+
+  const access = await authorizePlaybackAccess({
+    userId,
+    subscriptionId: subscription.id,
+    maxDevices: subscription.plan?.maxDevices || 1,
+    viewerKey,
+    profileId: activeProfile.id,
+    event: 'segment.access',
+  })
+
+  if (!access.ok) {
+    return NextResponse.json({ error: access.message, code: access.code }, { status: 409 })
   }
 
   try {

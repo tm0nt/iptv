@@ -2,8 +2,19 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getAuditRequestContext, logAuditEvent } from '@/lib/audit'
+import {
+  authorizePlaybackAccess,
+  getProfileCookieName,
+  getViewerKeyFromRequest,
+  resolveActiveProfile,
+} from '@/lib/account-playback'
 
 const UA = 'Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 Chrome/120'
+const SYNTHETIC_SEGMENT_SECONDS = 8
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 export async function GET(
   req: NextRequest,
@@ -16,13 +27,14 @@ export async function GET(
   }
 
   const userId = session.user.id
+  const { ipAddress, userAgent } = getAuditRequestContext(req)
   const sub = await prisma.subscription.findFirst({
     where: { userId, status: 'ACTIVE', expiresAt: { gt: new Date() } },
+    include: { plan: { select: { maxDevices: true } } },
   })
   if (!sub) {
     return NextResponse.json({
       error: 'Assinatura inativa',
-      debug: `userId=${userId} — sem assinatura ATIVA`,
     }, { status: 403 })
   }
 
@@ -32,8 +44,30 @@ export async function GET(
   if (!channel) {
     return NextResponse.json({
       error: 'Canal não encontrado',
-      debug: `uuid=${params.id}`,
     }, { status: 404 })
+  }
+
+  const requestedProfileId = req.cookies.get(getProfileCookieName())?.value || null
+  const { activeProfile } = await resolveActiveProfile(userId, requestedProfileId, sub.plan?.maxDevices || 1)
+  const viewerKey = getViewerKeyFromRequest(req)
+  if (!activeProfile) {
+    return NextResponse.json({ error: 'Perfil não encontrado' }, { status: 400 })
+  }
+
+  const access = await authorizePlaybackAccess({
+    userId,
+    subscriptionId: sub.id,
+    maxDevices: sub.plan?.maxDevices || 1,
+    viewerKey,
+    profileId: activeProfile.id,
+    channelUuid: channel.uuid,
+    channelName: channel.name,
+    contentType: channel.contentType,
+    event: 'stream.watch.started',
+  })
+
+  if (!access.ok) {
+    return NextResponse.json({ error: access.message, code: access.code }, { status: 409 })
   }
 
   prisma.channel.update({
@@ -41,8 +75,23 @@ export async function GET(
     data: { viewCount: { increment: 1 } },
   }).catch(() => {})
 
+  logAuditEvent({
+    action: 'stream.watch.started',
+    entityType: 'CHANNEL',
+    entityId: channel.uuid,
+    message: `Usuario iniciou reproducao do canal ${channel.name}`,
+    actor: session.user,
+    ipAddress,
+    userAgent,
+    metadata: {
+      channelName: channel.name,
+      contentType: channel.contentType,
+      subscriptionId: sub.id,
+    },
+  }).catch(() => {})
+
   const rawUrl = channel.streamUrl
-  console.log(`[Stream] ${channel.name} → ${rawUrl.slice(0, 70)}`)
+  console.log(`[Stream] Iniciando proxy protegido para ${channel.name}`)
 
   // ── 1. Try HLS: append .m3u8 to the stream URL ───────────────────────────
   // Xtream-compatible servers expose HLS at the same URL with .m3u8
@@ -69,8 +118,7 @@ export async function GET(
 
     if (!rawRes.ok) {
       return NextResponse.json({
-        error: `Upstream indisponível (HTTP ${rawRes.status})`,
-        debug: `Canal "${channel.name}"`,
+        error: 'Transmissão temporariamente indisponível',
       }, { status: 502 })
     }
 
@@ -98,10 +146,7 @@ export async function GET(
   } catch (err: any) {
     const isTimeout = err?.name === 'AbortError'
     return NextResponse.json({
-      error: isTimeout ? 'Timeout (15s)' : 'Erro no proxy',
-      debug: isTimeout
-        ? `Canal "${channel.name}" não respondeu em 15s`
-        : `${err?.message || err}`,
+      error: isTimeout ? 'Transmissão demorou para responder' : 'Erro ao preparar a transmissão',
     }, { status: 504 })
   }
 }
@@ -147,16 +192,16 @@ function rewriteM3U8(content: string, baseUrl: string): string {
 }
 
 function buildLiveM3U8(encoded: string): string {
-  // Sequence number changes every 8s → HLS.js re-polls and extends the live window
-  const seq = Math.floor(Date.now() / 8000)
+  // Sequence number changes every 8s so each synthetic segment stays short and recoverable.
+  const seq = Math.floor(Date.now() / (SYNTHETIC_SEGMENT_SECONDS * 1000))
   return [
     '#EXTM3U',
     '#EXT-X-VERSION:3',
-    '#EXT-X-TARGETDURATION:10',
+    `#EXT-X-TARGETDURATION:${SYNTHETIC_SEGMENT_SECONDS}`,
     `#EXT-X-MEDIA-SEQUENCE:${seq}`,
     '#EXT-X-DISCONTINUITY-SEQUENCE:0',
     // No codec hints here — HLS.js will detect from the TS stream itself
-    '#EXTINF:10.0,live',
+    `#EXTINF:${SYNTHETIC_SEGMENT_SECONDS.toFixed(1)},live`,
     `/api/ts/${encoded}?seq=${seq}`,
     // No EXT-X-ENDLIST = live mode; HLS.js keeps polling every ~targetduration
   ].join('\n')

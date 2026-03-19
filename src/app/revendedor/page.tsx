@@ -3,9 +3,10 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import {
   Users, DollarSign, TrendingUp, Copy, UserPlus,
-  Loader2, Check, X, RefreshCw, QrCode, ExternalLink,
+  Loader2, Check, X, QrCode, ExternalLink, Radio,
 } from 'lucide-react'
 import { MetricCard } from '@/components/admin/MetricCard'
+import { PageIntro } from '@/components/admin/PageIntro'
 import { formatCurrency, formatDate, cn } from '@/lib/utils'
 
 interface Stats {
@@ -37,8 +38,8 @@ export default function ResellerDashboard() {
   const [pixData,   setPixData]           = useState<any>(null)
   const [pixCopied, setPixCopied]         = useState(false)
 
-  async function loadData() {
-    setLoading(true)
+  async function loadData(silent = false) {
+    if (!silent) setLoading(true)
     const [s, c, p] = await Promise.all([
       fetch('/api/reseller/stats').then(r => r.json()),
       fetch('/api/reseller/clients').then(r => r.json()),
@@ -47,7 +48,39 @@ export default function ResellerDashboard() {
     setStats(s); setClients(c.subscriptions || []); setPlans(p.plans || [])
     setLoading(false)
   }
-  useEffect(() => { loadData() }, [])
+  useEffect(() => {
+    let fallback: ReturnType<typeof setInterval> | null = null
+    let source: EventSource | null = null
+    let fallbackStarted = false
+
+    loadData()
+
+    const startFallback = () => {
+      if (fallbackStarted) return
+      fallbackStarted = true
+      fallback = setInterval(() => loadData(true), 8000)
+    }
+
+    if (typeof window !== 'undefined' && 'EventSource' in window) {
+      source = new EventSource('/api/reseller/stats/stream')
+      source.addEventListener('stats', event => {
+        const next = JSON.parse((event as MessageEvent).data)
+        setStats(next)
+        setLoading(false)
+      })
+      source.addEventListener('error', () => {
+        source?.close()
+        startFallback()
+      })
+    } else {
+      startFallback()
+    }
+
+    return () => {
+      source?.close()
+      if (fallback) clearInterval(fallback)
+    }
+  }, [])
 
   function copyAffiliateLink() {
     if (!stats?.referralCode) return
@@ -96,8 +129,16 @@ export default function ResellerDashboard() {
   }
 
   if (loading) return (
-    <div className="p-6 pt-20 md:pt-8 grid grid-cols-2 lg:grid-cols-4 gap-3">
-      {[1,2,3,4].map(i => <div key={i} className="surface rounded-2xl p-5 h-28 skeleton" />)}
+    <div className="p-4 md:p-8 pt-20 md:pt-10 max-w-7xl space-y-6">
+      <div className="space-y-2">
+        <div className="h-8 w-52 rounded-full skeleton" />
+        <div className="h-4 w-64 rounded-full skeleton" />
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[1,2,3,4].map(i => <div key={i} className="surface rounded-[28px] p-5 h-28 skeleton" />)}
+      </div>
+      <div className="surface rounded-[28px] p-5 h-28 skeleton" />
+      <div className="surface rounded-[28px] p-5 h-72 skeleton" />
     </div>
   )
 
@@ -106,42 +147,52 @@ export default function ResellerDashboard() {
     : ''
 
   return (
-    <div className="p-4 md:p-6 pt-20 md:pt-8 space-y-5 max-w-5xl">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-[20px] font-semibold text-foreground">
-            Olá, {(session?.user as any)?.name?.split(' ')[0]} 👋
-          </h1>
-          <p className="text-[13px] text-muted-foreground">Painel do revendedor</p>
-        </div>
-        <button onClick={loadData} className="btn-ghost p-2"><RefreshCw className="w-4 h-4" /></button>
-      </div>
+    <div className="p-4 md:p-8 pt-20 md:pt-10 space-y-6 max-w-7xl">
+      <PageIntro
+        eyebrow="Revendedor"
+        title={`Olá, ${(session?.user as any)?.name?.split(' ')[0]}`}
+        description="Acompanhe sua operação em tempo real, compartilhe seu link e gerencie clientes no mesmo padrão visual do admin."
+        actions={(
+          <div className="inline-flex items-center gap-2 rounded-full bg-secondary/80 px-3 py-2 text-[12px] text-muted-foreground">
+            <Radio className={cn('w-3.5 h-3.5', !loading && 'text-[var(--apple-green)] animate-pulse')} />
+            Tempo real ativo
+          </div>
+        )}
+      />
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <MetricCard title="Comissão/mês" value={formatCurrency(stats?.monthlyCommission || 0)}
+          animateValue={stats?.monthlyCommission || 0}
+          formatValue={value => formatCurrency(value)}
           subtitle={`${((stats?.commissionRate || .2) * 100).toFixed(0)}% sobre receita`}
           icon={DollarSign} color="green" />
-        <MetricCard title="Clientes Ativos" value={stats?.activeClients || 0}
+        <MetricCard title="Clientes Ativos" value={stats?.activeClients || 0} animateValue={stats?.activeClients || 0}
           subtitle={`de ${stats?.totalClients || 0} total`} icon={Users} color="blue" />
-        <MetricCard title="Novos este mês" value={stats?.newThisMonth || 0}
+        <MetricCard title="Novos este mês" value={stats?.newThisMonth || 0} animateValue={stats?.newThisMonth || 0}
           icon={TrendingUp} color="violet" />
         <MetricCard title="Conversão" value={`${(stats?.conversionRate || 0).toFixed(1)}%`}
+          animateValue={stats?.conversionRate || 0}
+          formatValue={value => `${value.toFixed(1)}%`}
           subtitle={`${stats?.affiliateClicks || 0} cliques`} icon={ExternalLink} color="amber" />
       </div>
 
       {/* Affiliate link */}
-      <div className="surface rounded-2xl p-4">
-        <p className="text-[13px] font-semibold text-foreground mb-0.5">Link de Afiliado</p>
-        <p className="text-[12px] text-muted-foreground mb-3">Compartilhe e ganhe comissão automática</p>
+      <div className="surface rounded-[30px] p-5 md:p-6">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <p className="text-[16px] font-semibold text-foreground">Link de Afiliado</p>
+            <p className="text-[13px] text-muted-foreground mt-1">Compartilhe e ganhe comissão automática</p>
+          </div>
+          <span className="badge badge-blue">Link ativo</span>
+        </div>
         <div className="flex gap-2">
-          <code className="flex-1 text-[11px] bg-secondary px-3 py-2.5 rounded-xl font-mono text-muted-foreground truncate border border-border">
+          <code className="flex-1 text-[11px] bg-secondary px-3 py-3 rounded-2xl font-mono text-muted-foreground truncate">
             {affiliateUrl || 'Não disponível'}
           </code>
           <button onClick={copyAffiliateLink}
-            className={cn('btn-secondary px-3 text-[12px] flex-shrink-0',
-              copied && 'text-[var(--apple-green)] border-green-400/30')}>
+            className={cn('btn-secondary px-3.5 text-[12px] flex-shrink-0',
+              copied && 'text-[var(--apple-green)]')}>
             {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
             {copied ? 'Copiado!' : 'Copiar'}
           </button>
@@ -149,14 +200,14 @@ export default function ResellerDashboard() {
       </div>
 
       {/* Clients table */}
-      <div className="surface rounded-2xl overflow-hidden">
-        <div className="px-4 py-3.5 border-b border-border flex items-center justify-between">
+      <div className="surface rounded-[30px] overflow-hidden">
+        <div className="px-5 md:px-6 py-4 flex items-center justify-between">
           <div>
-            <p className="text-[14px] font-semibold text-foreground">Meus Clientes</p>
-            <p className="text-[12px] text-muted-foreground mt-0.5">{clients.length} gerenciados</p>
+            <p className="text-[16px] font-semibold text-foreground">Meus Clientes</p>
+            <p className="text-[13px] text-muted-foreground mt-1">{clients.length} gerenciados</p>
           </div>
           <button onClick={() => { setModal(true); setModalStep('form') }}
-            className="btn-primary py-2 px-3 text-[13px]">
+            className="btn-primary py-2.5 px-4 text-[13px]">
             <UserPlus className="w-3.5 h-3.5" /> Novo Cliente
           </button>
         </div>

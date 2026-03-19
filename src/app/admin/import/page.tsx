@@ -6,6 +6,7 @@ import {
   RefreshCw, Eye, Database, Zap, Plus, File, Trash2, Info,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { PageIntro } from '@/components/admin/PageIntro'
 
 type Mode = 'file' | 'url' | 'paste'
 type ImportMode = 'merge' | 'replace'
@@ -18,7 +19,14 @@ interface PreviewData {
 }
 interface ImportResult {
   files: Array<{ name: string; count: number }>
-  total: number; created: number; skipped: number; elapsed: string
+  total: number
+  created?: number
+  skipped?: number
+  elapsed: string
+  channels?: {
+    created?: number
+    skipped?: number
+  }
 }
 
 const MAX_MB    = 200
@@ -113,23 +121,19 @@ export default function AdminImport() {
     (inputMode === 'url'  && urls.some(u => u.trim().startsWith('http'))) ||
     (inputMode === 'paste' && paste.includes('#EXTINF'))
 
+  const createdCount = result?.created ?? result?.channels?.created ?? 0
+  const skippedCount = result?.skipped ?? result?.channels?.skipped ?? 0
+
   return (
-    <div className="p-4 md:p-6 pt-20 md:pt-8 max-w-3xl">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-5">
-        <div className="w-10 h-10 rounded-xl bg-[var(--apple-blue)]/10 flex items-center justify-center flex-shrink-0">
-          <Upload className="w-5 h-5 text-[var(--apple-blue)]" />
-        </div>
-        <div>
-          <h1 className="text-[20px] font-semibold text-foreground">Importar Canais M3U</h1>
-          <p className="text-[13px] text-muted-foreground">
-            Múltiplos arquivos · Até {MAX_MB}MB por arquivo · 500k+ canais suportados
-          </p>
-        </div>
-      </div>
+    <div className="p-4 md:p-8 pt-20 md:pt-10 max-w-7xl space-y-6">
+      <PageIntro
+        eyebrow="Admin"
+        title="Importação de canais M3U"
+        description={`Múltiplos arquivos, URLs ou texto colado. Até ${MAX_MB}MB por arquivo com suporte a grandes volumes.`}
+      />
 
       {/* Info banner */}
-      <div className="flex items-start gap-3 p-4 bg-[var(--apple-blue)]/8 border border-[var(--apple-blue)]/20 rounded-xl mb-5">
+      <div className="flex items-start gap-3 p-4 bg-[var(--apple-blue)]/8 border border-[var(--apple-blue)]/20 rounded-[24px]">
         <Info className="w-4 h-4 text-[var(--apple-blue)] mt-0.5 flex-shrink-0" />
         <div className="text-[12px] text-foreground space-y-1">
           <p className="font-semibold">Canais importados ficam sem categoria</p>
@@ -143,7 +147,7 @@ export default function AdminImport() {
       {/* Input tabs */}
       {(step === 'idle' || step === 'previewing' || step === 'previewed' || step === 'error') && (
         <div className="space-y-4">
-          <div className="surface rounded-2xl overflow-hidden">
+          <div className="surface rounded-[30px] overflow-hidden">
             <div className="flex border-b border-border">
               {([
                 ['file',  FileText, 'Arquivo(s)'],
@@ -388,13 +392,13 @@ export default function AdminImport() {
             </div>
             <p className="text-[18px] font-bold text-foreground mb-1">Importação concluída!</p>
             <p className="text-[13px] text-muted-foreground">
-              {result.created.toLocaleString()} canais adicionados em {result.elapsed}
+              {createdCount.toLocaleString()} canais adicionados em {result.elapsed}
             </p>
           </div>
           <div className="grid grid-cols-3 gap-3">
             {([
-              ['Criados',  result.created,  'text-[var(--apple-green)]'],
-              ['Ignorados', result.skipped, 'text-muted-foreground'],
+              ['Criados',  createdCount, 'text-[var(--apple-green)]'],
+              ['Ignorados', skippedCount, 'text-muted-foreground'],
               ['Total',    result.total,    'text-[var(--apple-blue)]'],
             ] as const).map(([label, value, cls]) => (
               <div key={label} className="surface rounded-xl p-3 text-center">

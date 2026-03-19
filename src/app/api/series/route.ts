@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getAuditRequestContext, logAuditEvent } from '@/lib/audit'
 
 /**
  * GET /api/series
@@ -25,6 +26,7 @@ export async function GET(request: NextRequest) {
   const limit    = Math.min(48, Math.max(1, parseInt(url.searchParams.get('limit') || '24', 10)))
   const provider = url.searchParams.get('provider') || undefined
   const q        = url.searchParams.get('q')?.trim() || undefined
+  const ctx = getAuditRequestContext(request)
 
   // ── Single series detail ──────────────────────────────────────────────────
   if (id) {
@@ -81,6 +83,19 @@ export async function GET(request: NextRequest) {
       })).filter(s => s.episodes.length > 0), // only seasons with episodes
     }
 
+    await logAuditEvent({
+      action: 'series.detail.viewed',
+      entityType: 'SERIES',
+      entityId: series.id,
+      message: `Detalhe da serie aberto: ${series.title}`,
+      actor: session.user,
+      ...ctx,
+      metadata: {
+        provider: series.provider,
+        seasons: detail.seasons.length,
+      },
+    })
+
     return NextResponse.json({ series: detail })
   }
 
@@ -134,6 +149,24 @@ export async function GET(request: NextRequest) {
     select: { provider: true },
     distinct: ['provider'],
   })
+
+  if (page === 0 || provider || q) {
+    await logAuditEvent({
+      action: 'series.list.viewed',
+      entityType: 'SERIES',
+      message: 'Lista de series consultada',
+      actor: session.user,
+      ...ctx,
+      metadata: {
+        page,
+        limit,
+        provider: provider || null,
+        query: q || null,
+        total,
+        returned: items.length,
+      },
+    })
+  }
 
   return NextResponse.json({
     data:      items,

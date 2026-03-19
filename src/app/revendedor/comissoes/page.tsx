@@ -1,7 +1,9 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { DollarSign, TrendingUp, Calendar, Loader2, ArrowUpRight } from 'lucide-react'
+import { DollarSign, TrendingUp, Calendar, ArrowUpRight } from 'lucide-react'
 import { formatCurrency, cn } from '@/lib/utils'
+import { Skeleton } from '@/components/ui/skeleton'
+import { PageIntro } from '@/components/admin/PageIntro'
 
 interface Stats {
   monthlyCommission: number; commissionRate: number
@@ -24,25 +26,58 @@ export default function ResellerCommissions() {
   }, [])
 
   if (loading) return (
-    <div className="p-6 pt-20 md:pt-8 flex justify-center">
-      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+    <div className="p-4 md:p-8 pt-20 md:pt-10 max-w-7xl space-y-6">
+      <div className="space-y-2">
+        <Skeleton className="h-7 w-36 rounded-full" />
+        <Skeleton className="h-4 w-72 rounded-full" />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {[1, 2, 3].map(i => <Skeleton key={i} className="h-28 w-full rounded-2xl" />)}
+      </div>
+      <div className="surface rounded-2xl p-5 space-y-3">
+        <Skeleton className="h-5 w-32 rounded-full" />
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={index} className="flex items-start gap-3">
+            <Skeleton className="h-5 w-5 rounded-full flex-shrink-0 mt-0.5" />
+            <Skeleton className="h-4 w-full rounded-full" />
+          </div>
+        ))}
+      </div>
+      <div className="surface rounded-2xl overflow-hidden">
+        <div className="px-4 py-3.5 border-b border-border">
+          <Skeleton className="h-5 w-44 rounded-full" />
+        </div>
+        <div className="p-4 space-y-3">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="flex items-center justify-between">
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-36 rounded-full" />
+                <Skeleton className="h-3 w-28 rounded-full" />
+              </div>
+              <div className="space-y-2 flex items-end">
+                <Skeleton className="h-4 w-20 rounded-full" />
+                <Skeleton className="h-6 w-16 rounded-full" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 
   const pct = ((stats?.commissionRate || 0.2) * 100).toFixed(0)
 
   return (
-    <div className="p-4 md:p-6 pt-20 md:pt-8 max-w-3xl space-y-5">
-      <div>
-        <h1 className="text-[20px] font-semibold text-foreground">Comissões</h1>
-        <p className="text-[13px] text-muted-foreground mt-0.5">
-          Taxa: <span className="text-[var(--apple-blue)] font-semibold">{pct}%</span> sobre o valor dos planos
-        </p>
-      </div>
+    <div className="p-4 md:p-8 pt-20 md:pt-10 max-w-7xl space-y-6">
+      <PageIntro
+        eyebrow="Revendedor"
+        title="Resumo financeiro"
+        description={<>Taxa atual: <span className="text-[var(--apple-blue)] font-semibold">{pct}%</span> sobre o valor dos planos.</>}
+      />
 
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="surface rounded-2xl p-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="surface rounded-[28px] p-5">
           <div className="flex items-center gap-1.5 text-muted-foreground mb-2">
             <DollarSign className="w-3.5 h-3.5 text-[var(--apple-green)]" />
             <span className="text-[12px]">Este mês</span>
@@ -50,7 +85,7 @@ export default function ResellerCommissions() {
           <p className="text-2xl font-bold text-foreground tabular-nums">{formatCurrency(stats?.monthlyCommission || 0)}</p>
           <p className="text-[11px] text-muted-foreground mt-0.5">Estimado</p>
         </div>
-        <div className="surface rounded-2xl p-4">
+        <div className="surface rounded-[28px] p-5">
           <div className="flex items-center gap-1.5 text-muted-foreground mb-2">
             <TrendingUp className="w-3.5 h-3.5 text-[var(--apple-blue)]" />
             <span className="text-[12px]">Ativos</span>
@@ -58,7 +93,7 @@ export default function ResellerCommissions() {
           <p className="text-2xl font-bold text-foreground tabular-nums">{stats?.activeClients || 0}</p>
           <p className="text-[11px] text-muted-foreground mt-0.5">Gerando comissão</p>
         </div>
-        <div className="surface rounded-2xl p-4">
+        <div className="surface rounded-[28px] p-5">
           <div className="flex items-center gap-1.5 text-muted-foreground mb-2">
             <Calendar className="w-3.5 h-3.5 text-violet-500" />
             <span className="text-[12px]">Pagamento</span>
@@ -69,7 +104,7 @@ export default function ResellerCommissions() {
       </div>
 
       {/* How it works */}
-      <div className="surface rounded-2xl p-5">
+      <div className="surface rounded-[30px] p-6">
         <h2 className="text-[14px] font-semibold text-foreground mb-3">Como funciona</h2>
         <div className="space-y-3">
           {[
@@ -89,9 +124,10 @@ export default function ResellerCommissions() {
       </div>
 
       {/* Payout history */}
-      <div className="surface rounded-2xl overflow-hidden">
-        <div className="px-4 py-3.5 border-b border-border">
-          <h2 className="text-[14px] font-semibold text-foreground">Histórico de Pagamentos</h2>
+      <div className="surface rounded-[30px] overflow-hidden">
+        <div className="px-5 md:px-6 py-4">
+          <h2 className="text-[16px] font-semibold text-foreground">Histórico de Pagamentos</h2>
+          <p className="text-[13px] text-muted-foreground mt-1">Acompanhe o fechamento atual e os repasses anteriores.</p>
         </div>
         <div className="divide-y divide-border">
           {/* Current month — pending */}

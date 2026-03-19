@@ -4,9 +4,12 @@ import { useSearchParams } from 'next/navigation'
 import { CatalogCarousel, CatalogCarouselSkeleton, type ChannelItem } from '@/components/catalog/CatalogCarousel'
 import { SeriesCarousel, SeriesCarouselSkeleton } from '@/components/catalog/SeriesCarousel'
 import { HeroBanner } from '@/components/catalog/HeroBanner'
+import { SpotlightBanner } from '@/components/catalog/SpotlightBanner'
+import { ContinueWatchingRail, type ContinueWatchingItem } from '@/components/catalog/ContinueWatchingRail'
 import { SubscriptionModal } from '@/components/catalog/SubscriptionModal'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useCatalog, useIntersectionObserver } from '@/hooks/useCatalog'
-import { Loader2, Tv, Film, Zap, Baby, Compass, SlidersHorizontal, Clapperboard } from 'lucide-react'
+import { Tv, Film, Zap, Baby, Compass, SlidersHorizontal, Clapperboard } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SeriesItem } from '@/types'
 
@@ -34,6 +37,13 @@ function WatchContent() {
   // Series data (separate fetch)
   const [seriesByProvider, setSeriesByProvider] = useState<Record<string, SeriesItem[]>>({})
   const [seriesLoading, setSeriesLoading]       = useState(false)
+  const [seriesLoaded, setSeriesLoaded]         = useState(false)
+  const [spotlight, setSpotlight]               = useState<{
+    channel: ChannelItem
+    category: string
+    bannerUrl?: string | null
+  } | null>(null)
+  const [continueWatching, setContinueWatching] = useState<ContinueWatchingItem[]>([])
 
   // Infinite scroll sentinel
   const sentinelRef = useIntersectionObserver(
@@ -48,7 +58,7 @@ function WatchContent() {
   // Fetch series when tab is active
   useEffect(() => {
     if (activeTab !== 'all' && activeTab !== 'series') return
-    if (Object.keys(seriesByProvider).length > 0) return // already loaded
+    if (seriesLoaded || seriesLoading || noSub) return
 
     setSeriesLoading(true)
     fetch('/api/series?limit=48')
@@ -65,8 +75,29 @@ function WatchContent() {
         setSeriesByProvider(grouped)
       })
       .catch(() => {})
-      .finally(() => setSeriesLoading(false))
-  }, [activeTab, seriesByProvider])
+      .finally(() => {
+        setSeriesLoading(false)
+        setSeriesLoaded(true)
+      })
+  }, [activeTab, noSub, seriesLoaded, seriesLoading])
+
+  useEffect(() => {
+    if (noSub) return
+
+    fetch('/api/spotlight')
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => setSpotlight(data?.spotlight || null))
+      .catch(() => {})
+  }, [noSub])
+
+  useEffect(() => {
+    if (noSub) return
+
+    fetch('/api/continue-watching')
+      .then(r => (r.ok ? r.json() : { items: [] }))
+      .then(data => setContinueWatching(data.items || []))
+      .catch(() => {})
+  }, [noSub])
 
   const refCode = typeof document !== 'undefined'
     ? document.cookie.split('; ').find(r => r.startsWith('ref_code='))?.split('=')[1]
@@ -93,9 +124,22 @@ function WatchContent() {
   // Initial loading state — only show full screen loader if nothing is loaded yet
   if (liveLoading && liveCategories.length === 0) {
     return (
-      <div className="min-h-[80vh] flex flex-col items-center justify-center gap-3">
-        <Loader2 className="w-7 h-7 animate-spin text-muted-foreground" />
-        <p className="text-[13px] text-muted-foreground">Carregando catálogo...</p>
+      <div className="pb-16">
+        <div className="px-4 md:px-6 pt-6 md:pt-8">
+          <Skeleton className="h-[360px] md:h-[430px] rounded-[32px]" />
+        </div>
+        <div className="sticky top-14 z-30 bg-background/90 backdrop-blur-md border-b border-border/50 mt-6">
+          <div className="flex gap-2 overflow-x-auto px-4 md:px-6 py-2.5">
+            {[1, 2, 3, 4].map(i => (
+              <Skeleton key={i} className="h-8 w-24 rounded-full flex-shrink-0" />
+            ))}
+          </div>
+        </div>
+        <div className="space-y-8 mt-8">
+          <CatalogCarouselSkeleton />
+          <CatalogCarouselSkeleton />
+          <SeriesCarouselSkeleton />
+        </div>
       </div>
     )
   }
@@ -106,7 +150,15 @@ function WatchContent() {
 
       <div className="pb-16">
         {/* Hero — renders immediately from first batch */}
-        {!noSub && hero && heroCat && (
+        {!noSub && spotlight && (
+          <SpotlightBanner
+            channel={spotlight.channel}
+            category={spotlight.category}
+            bannerUrl={spotlight.bannerUrl}
+          />
+        )}
+
+        {!noSub && !spotlight && hero && heroCat && (
           <HeroBanner channel={hero} category={heroCat.name} />
         )}
 
@@ -132,7 +184,10 @@ function WatchContent() {
         )}
 
         {/* Content area */}
-        <div className={cn('space-y-8', hero && !noSub ? 'mt-8' : 'mt-6')}>
+        <div className={cn('space-y-8', (spotlight || hero) && !noSub ? 'mt-8' : 'mt-6')}>
+          {!noSub && continueWatching.length > 0 && (
+            <ContinueWatchingRail items={continueWatching} />
+          )}
 
           {/* ── Live channels (progressively loaded) ───────────────────────── */}
           {displayedLive.map(cat => (
@@ -211,8 +266,14 @@ function TabPill({ active, onClick, children }: {
 export default function WatchPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-[80vh] flex items-center justify-center">
-        <Loader2 className="w-7 h-7 animate-spin text-muted-foreground" />
+      <div className="pb-16">
+        <div className="px-4 md:px-6 pt-6 md:pt-8">
+          <Skeleton className="h-[360px] md:h-[430px] rounded-[32px]" />
+        </div>
+        <div className="space-y-8 mt-8">
+          <CatalogCarouselSkeleton />
+          <CatalogCarouselSkeleton />
+        </div>
       </div>
     }>
       <WatchContent />

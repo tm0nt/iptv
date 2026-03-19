@@ -5,7 +5,9 @@ import {
   Check, X, Tag, ChevronLeft, ChevronRight, Filter, Plus, Inbox,
 } from 'lucide-react'
 import Image from 'next/image'
+import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
+import { PageIntro } from '@/components/admin/PageIntro'
 
 interface Channel {
   uuid: string; name: string; logoUrl?: string | null
@@ -85,7 +87,7 @@ export default function AdminChannels() {
     await fetch('/api/admin/channels', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        uuids:      [...selected],
+        uuids:      Array.from(selected),
         categoryId: assignCat || null,
       }),
     })
@@ -120,28 +122,26 @@ export default function AdminChannels() {
   const totalUncategorized = catFilter === 'none' ? total : undefined
 
   return (
-    <div className="p-4 md:p-6 pt-20 md:pt-8 max-w-[1600px]">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-        <div>
-          <h1 className="text-[20px] font-semibold text-foreground">Canais</h1>
-          <p className="text-[13px] text-muted-foreground mt-0.5">
-            {total.toLocaleString()} canais · {categories.length} categorias
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setAddCatOpen(true)}
-            className="btn-secondary py-2 px-3 text-[13px]">
-            <Plus className="w-3.5 h-3.5" /> Categoria
-          </button>
-          <a href="/admin/import" className="btn-primary py-2 px-3 text-[13px]">
-            Importar M3U
-          </a>
-          <button onClick={() => load()} className="btn-ghost p-2">
-            <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
-          </button>
-        </div>
-      </div>
+    <div className="p-4 md:p-8 pt-20 md:pt-10 max-w-7xl space-y-6">
+      <PageIntro
+        eyebrow="Admin"
+        title="Catálogo de canais"
+        description={`${total.toLocaleString()} canais disponíveis e ${categories.length} categoria(s) para organizar a grade.`}
+        actions={(
+          <>
+            <button onClick={() => setAddCatOpen(true)}
+              className="btn-secondary py-2.5 px-3 text-[13px]">
+              <Plus className="w-3.5 h-3.5" /> Categoria
+            </button>
+            <a href="/admin/import" className="btn-primary py-2.5 px-3 text-[13px]">
+              Importar M3U
+            </a>
+            <button onClick={() => load()} className="btn-ghost p-2.5">
+              <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
+            </button>
+          </>
+        )}
+      />
 
       {/* Category filter */}
       <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 mb-4 -mx-0.5 px-0.5">
@@ -212,8 +212,16 @@ export default function AdminChannels() {
 
       {/* Loading */}
       {loading && (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-10 xl:grid-cols-12 gap-2">
+          {Array.from({ length: 36 }).map((_, index) => (
+            <div key={index} className="surface rounded-xl overflow-hidden">
+              <Skeleton className="h-12 w-full rounded-none" />
+              <div className="p-2 space-y-2">
+                <Skeleton className="h-3 w-full rounded-full" />
+                <Skeleton className="h-3 w-2/3 rounded-full" />
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

@@ -47,6 +47,7 @@ model User {
   id            String    @id @default(cuid())
   name          String
   email         String    @unique
+  phone         String?
   password      String
   role          Role      @default(CLIENT)
   active        Boolean   @default(true)
@@ -55,6 +56,9 @@ model User {
 
   subscriptions     Subscription[]
   payments          Payment[]
+  accountProfiles   AccountProfile[]
+  playbackSessions  PlaybackSession[]
+  watchProgress     WatchProgress[]
   referralCode      String?   @unique
   commissionRate    Float     @default(0.20)
   parentId          String?
@@ -105,6 +109,7 @@ model Subscription {
   username    String?
   password    String?
   payment     Payment?
+  playbackSessions PlaybackSession[]
 
   @@map("subscriptions")
 }
@@ -264,6 +269,28 @@ model Payout {
   @@map("payouts")
 }
 
+model AuditLog {
+  id         String   @id @default(cuid())
+  level      String   @default("INFO")
+  action     String
+  entityType String
+  entityId   String?
+  message    String
+  actorId    String?
+  actorEmail String?
+  actorRole  String?
+  ipAddress  String?
+  userAgent  String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([action])
+  @@index([entityType])
+  @@index([actorId])
+  @@map("audit_logs")
+}
+
 model SystemConfig {
   id        String   @id @default(cuid())
   key       String   @unique
@@ -271,4 +298,62 @@ model SystemConfig {
   updatedAt DateTime @updatedAt
 
   @@map("system_config")
+}
+
+model AccountProfile {
+  id         String   @id
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  playbackSessions PlaybackSession[]
+  watchProgress WatchProgress[]
+
+  @@index([userId])
+  @@map("account_profiles")
+}
+
+model PlaybackSession {
+  id             String   @id
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptionId String?
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  profileId      String
+  profile        AccountProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  viewerKey      String
+  channelUuid    String?
+  channelName    String?
+  contentType    String?
+  lastEvent      String?
+  startedAt      DateTime @default(now())
+  lastSeenAt     DateTime @default(now())
+
+  @@unique([profileId])
+  @@index([userId, lastSeenAt])
+  @@map("playback_sessions")
+}
+
+model WatchProgress {
+  id              String   @id
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profileId       String
+  profile         AccountProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  channelUuid     String
+  contentType     String
+  progressSeconds Float    @default(0)
+  durationSeconds Float?
+  progressPercent Float    @default(0)
+  completed       Boolean  @default(false)
+  isLive          Boolean  @default(false)
+  lastWatchedAt   DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([profileId, channelUuid])
+  @@index([profileId, lastWatchedAt])
+  @@map("watch_progress")
 }

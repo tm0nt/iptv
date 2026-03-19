@@ -3,11 +3,12 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
+import { getAuditRequestContext, logAuditEvent } from '@/lib/audit'
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions)
   const user = session?.user
-  if (!session || !['ADMIN', 'RESELLER'].includes(user?.role)) {
+  if (!session || !user || !user.role || !['ADMIN', 'RESELLER'].includes(user.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -35,10 +36,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions)
   const reseller = session?.user
-  if (!session || !['ADMIN', 'RESELLER'].includes(reseller?.role)) {
+  if (!session || !reseller || !reseller.role || !['ADMIN', 'RESELLER'].includes(reseller.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  const { ipAddress, userAgent } = getAuditRequestContext(request)
   const body = await request.json()
 
   // Create user + subscription
@@ -69,6 +71,21 @@ export async function POST(request: NextRequest) {
       resellerId: reseller.id,
       username: body.username || newUser.email,
       password: body.iptv_password || Math.random().toString(36).slice(2, 10),
+    },
+  })
+
+  await logAuditEvent({
+    action: 'reseller.client.created',
+    entityType: 'USER',
+    entityId: newUser.id,
+    message: `Cliente ${newUser.email} criado pelo revendedor`,
+    actor: reseller,
+    ipAddress,
+    userAgent,
+    metadata: {
+      subscriptionId: sub.id,
+      planId: body.planId,
+      resellerId: reseller.id,
     },
   })
 

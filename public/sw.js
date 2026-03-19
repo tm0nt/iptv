@@ -1,8 +1,8 @@
-const CACHE_NAME = 'streambox-v1'
+const CACHE_NAME = 'iptv-v1'
 const STATIC_ASSETS = [
   '/',
   '/watch',
-  '/manifest.json',
+  '/manifest.webmanifest',
   '/icons/icon-192.png',
 ]
 

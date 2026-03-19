@@ -9,9 +9,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const role = (session.user as any)?.role
   if (!['ADMIN', 'RESELLER'].includes(role)) redirect('/watch')
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="admin-shell min-h-screen bg-background flex">
       <AdminSidebar role={role} user={session.user as any} />
-      <main className="flex-1 ml-0 md:ml-56 min-h-screen overflow-x-hidden">{children}</main>
+      <main className="admin-main flex-1 ml-0 md:ml-56 min-h-screen overflow-x-hidden">
+        <div className="admin-content mx-auto w-full max-w-[1480px]">
+          {children}
+        </div>
+      </main>
     </div>
   )
 }

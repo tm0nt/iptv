@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getAuditRequestContext, logAuditEvent } from '@/lib/audit'
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -58,6 +59,21 @@ export async function GET(request: NextRequest) {
     seasonCount: s._count.seasons,
     episodeCount: s.seasons.reduce((acc, sea) => acc + sea._count.episodes, 0),
   }))
+
+  const ctx = getAuditRequestContext(request)
+  await logAuditEvent({
+    action: 'catalog.search.performed',
+    entityType: 'CATALOG',
+    message: `Busca realizada por "${q}"`,
+    actor: session.user,
+    ...ctx,
+    metadata: {
+      query: q,
+      channelResults: channels.length,
+      seriesResults: seriesResults.length,
+      hasSubscription: !!sub,
+    },
+  })
 
   return NextResponse.json({
     results: channels.map(ch => ({

@@ -9,6 +9,7 @@
    ───────────────────────────────────────────────────────────────────────────── */
 @layer base {
   :root {
+    --brand-primary: #73de90;
     /* shadcn/ui compat */
     --background: 0 0% 100%;
     --foreground: 0 0% 3%;
@@ -16,7 +17,7 @@
     --card-foreground: 0 0% 3%;
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 3%;
-    --primary: 211 100% 50%;
+    --primary: 137 62% 66%;
     --primary-foreground: 0 0% 100%;
     --secondary: 240 5% 96%;
     --secondary-foreground: 0 0% 9%;
@@ -28,13 +29,13 @@
     --destructive-foreground: 0 0% 100%;
     --border: 240 6% 90%;
     --input: 240 6% 90%;
-    --ring: 211 100% 50%;
+    --ring: 137 62% 66%;
     --radius: 0.75rem;
 
     /* Apple palette */
-    --apple-blue:   #007AFF;
+    --apple-blue:   var(--brand-primary);
     --apple-indigo: #5856D6;
-    --apple-green:  #34C759;
+    --apple-green:  var(--brand-primary);
     --apple-red:    #FF3B30;
     --apple-amber:  #FF9500;
     --apple-teal:   #30B0C7;
@@ -63,7 +64,7 @@
     --card-foreground: 0 0% 98%;
     --popover: 240 6% 8%;
     --popover-foreground: 0 0% 98%;
-    --primary: 211 100% 58%;
+    --primary: 137 62% 66%;
     --primary-foreground: 0 0% 0%;
     --secondary: 240 4% 12%;
     --secondary-foreground: 0 0% 98%;
@@ -75,7 +76,7 @@
     --destructive-foreground: 0 0% 100%;
     --border: 240 4% 16%;
     --input: 240 4% 16%;
-    --ring: 211 100% 58%;
+    --ring: 137 62% 66%;
 
     --sys-gray6: #1C1C1E;
     --sys-gray5: #2C2C2E;
@@ -158,8 +159,8 @@
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2;
     @apply px-4 py-2.5 rounded-xl text-[14px] font-semibold text-white;
-    background: var(--apple-blue);
-    box-shadow: 0 1px 3px color-mix(in srgb, var(--apple-blue) 40%, transparent);
+    background: var(--brand-primary);
+    box-shadow: 0 1px 3px color-mix(in srgb, var(--brand-primary) 40%, transparent);
     transition: filter 120ms ease, transform 80ms ease;
   }
   .btn-primary:hover:not(:disabled) { filter: brightness(1.1); }
@@ -188,7 +189,7 @@
     @apply bg-secondary border border-border;
     @apply text-foreground placeholder:text-muted-foreground;
     @apply outline-none transition-all duration-150;
-    @apply focus:border-[var(--apple-blue)] focus:ring-2 focus:ring-blue-500/15;
+    @apply focus:border-[var(--brand-primary)] focus:ring-2;
   }
   select.field-input { @apply cursor-pointer; }
 
@@ -266,6 +267,94 @@
   /* ── Labels ── */
   .text-label {
     @apply text-[11px] font-semibold text-muted-foreground uppercase tracking-wider;
+  }
+
+  /* ── Admin shell ── */
+  .admin-content > * {
+    @apply w-full mx-auto;
+  }
+
+  .admin-shell .sidebar,
+  .admin-shell .nav-glass {
+    border-color: transparent;
+    background: color-mix(in srgb, hsl(var(--background)) 84%, transparent);
+  }
+
+  .admin-shell .surface,
+  .admin-shell .surface-sm,
+  .admin-shell .surface-elevated {
+    border-color: transparent;
+    background: color-mix(in srgb, hsl(var(--card)) 92%, transparent);
+    box-shadow: 0 18px 48px rgba(15, 23, 42, 0.05), 0 1px 0 rgba(255,255,255,0.55) inset;
+  }
+
+  .dark .admin-shell .surface,
+  .dark .admin-shell .surface-sm,
+  .dark .admin-shell .surface-elevated {
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28), 0 1px 0 rgba(255,255,255,0.03) inset;
+  }
+
+  .admin-shell .btn-secondary,
+  .admin-shell .field-input,
+  .admin-shell .modal-sheet {
+    border-color: transparent;
+  }
+
+  .admin-shell .field-input,
+  .admin-shell .btn-secondary {
+    background: color-mix(in srgb, hsl(var(--secondary)) 88%, transparent);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.45) inset, 0 10px 30px rgba(15, 23, 42, 0.04);
+  }
+
+  .dark .admin-shell .field-input,
+  .dark .admin-shell .btn-secondary {
+    box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 10px 30px rgba(0, 0, 0, 0.18);
+  }
+
+  .admin-shell .data-table th,
+  .admin-shell .data-table td {
+    border-color: color-mix(in srgb, hsl(var(--border)) 45%, transparent);
+  }
+
+  body[data-lights-off='true'] .client-nav-header,
+  body[data-lights-off='true'] .client-nav-mobile-drawer,
+  body[data-lights-off='true'] .watch-subheader {
+    background: rgba(0, 0, 0, 0.5) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    backdrop-filter: saturate(140%) blur(16px);
+    -webkit-backdrop-filter: saturate(140%) blur(16px);
+  }
+
+  body[data-lights-off='true'] .client-nav-header {
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.18);
+  }
+
+  body[data-lights-off='true'] .client-nav-header::before {
+    opacity: 0 !important;
+  }
+
+  body[data-lights-off='true'] .client-nav-header .text-muted-foreground,
+  body[data-lights-off='true'] .client-nav-mobile-drawer .text-muted-foreground,
+  body[data-lights-off='true'] .watch-subheader .text-muted-foreground {
+    color: rgba(255, 255, 255, 0.68) !important;
+  }
+
+  body[data-lights-off='true'] .client-nav-header .text-foreground,
+  body[data-lights-off='true'] .client-nav-mobile-drawer .text-foreground,
+  body[data-lights-off='true'] .watch-subheader .text-foreground {
+    color: rgba(255, 255, 255, 0.92) !important;
+  }
+
+  .client-nav-header,
+  .client-nav-mobile-drawer,
+  .watch-subheader {
+    transition:
+      background-color 300ms ease,
+      border-color 300ms ease,
+      box-shadow 300ms ease,
+      color 300ms ease,
+      backdrop-filter 300ms ease,
+      -webkit-backdrop-filter 300ms ease;
   }
 }
 

@@ -1,9 +1,12 @@
 import { cn } from '@/lib/utils'
 import type { LucideIcon } from 'lucide-react'
+import { AnimatedNumber } from '@/components/ui/animated-number'
 
 interface MetricCardProps {
   title: string
   value: string | number
+  animateValue?: number
+  formatValue?: (value: number) => string
   subtitle?: string
   icon: LucideIcon
   trend?: { value: number; label: string }
@@ -18,7 +21,16 @@ const colors = {
   red:    { bg: 'bg-red-500/10',    icon: 'text-[var(--apple-red)]' },
 }
 
-export function MetricCard({ title, value, subtitle, icon: Icon, trend, color = 'blue' }: MetricCardProps) {
+export function MetricCard({
+  title,
+  value,
+  animateValue,
+  formatValue,
+  subtitle,
+  icon: Icon,
+  trend,
+  color = 'blue',
+}: MetricCardProps) {
   const c = colors[color]
   return (
     <div className="stat-card">
@@ -37,7 +49,11 @@ export function MetricCard({ title, value, subtitle, icon: Icon, trend, color = 
           </span>
         )}
       </div>
-      <p className="text-2xl font-bold text-foreground tracking-tight tabular-nums">{value}</p>
+      <p className="text-2xl font-bold text-foreground tracking-tight tabular-nums">
+        {typeof animateValue === 'number'
+          ? <AnimatedNumber value={animateValue} formatter={formatValue} />
+          : value}
+      </p>
       <p className="text-[13px] text-muted-foreground mt-0.5">{title}</p>
       {subtitle && <p className="text-[11px] text-muted-foreground/60 mt-0.5">{subtitle}</p>}
     </div>
