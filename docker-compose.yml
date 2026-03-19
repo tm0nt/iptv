@@ -1,0 +1,92 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: grilotv-db
+    restart: unless-stopped
+    env_file:
+      - .env.docker
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: grilotv-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env.docker
+    volumes:
+      - app_uploads:/app/public/uploads
+      - app_logos:/app/public/logos
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/login >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
+
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: grilotv-caddy
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_started
+    env_file:
+      - .env.docker
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro,z
+      - caddy_data:/data
+      - caddy_config:/config
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+
+  watchtower:
+    image: containrrr/watchtower:1.7.1
+    container_name: grilotv-watchtower
+    restart: unless-stopped
+    env_file:
+      - .env.docker
+    depends_on:
+      caddy:
+        condition: service_started
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:z
+    security_opt:
+      - label=disable
+    command:
+      - --cleanup
+      - --label-enable
+      - --interval
+      - ${WATCHTOWER_POLL_INTERVAL:-300}
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
+
+volumes:
+  postgres_data:
+    name: grilotv_postgres_data
+  app_uploads:
+    name: grilotv_app_uploads
+  app_logos:
+    name: grilotv_app_logos
+  caddy_data:
+    name: grilotv_caddy_data
+  caddy_config:
+    name: grilotv_caddy_config

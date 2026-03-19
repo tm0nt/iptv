@@ -7,3 +7,5 @@
 /public/logos/*.svg
 .next/
 node_modules/
+backups/
+.grilotv-bootstrap.secrets.env

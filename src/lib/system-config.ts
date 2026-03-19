@@ -96,38 +96,68 @@ function fromRows(
 }
 
 export async function getPublicSystemConfig() {
-  const rows = await prisma.systemConfig.findMany({
-    where: {
-      key: {
-        in: [
-          'site_name',
-          'site_short_name',
-          'site_logo_url',
-          'site_logo_dark_url',
-          'site_logo_light_url',
-          'primary_color',
-          'featured_channel_uuid',
-          'featured_banner_url',
-          'support_email',
-          'support_whatsapp',
-        ],
-      },
-    },
-    select: { key: true, value: true },
-  })
+  if (process.env.SKIP_DB_DURING_BUILD === 'true') {
+    return {
+      siteName: SYSTEM_DEFAULTS.siteName,
+      siteShortName: SYSTEM_DEFAULTS.siteShortName,
+      siteLogoUrl: SYSTEM_DEFAULTS.siteLogoUrl,
+      siteLogoDarkUrl: SYSTEM_DEFAULTS.siteLogoDarkUrl,
+      siteLogoLightUrl: SYSTEM_DEFAULTS.siteLogoLightUrl,
+      primaryColor: SYSTEM_DEFAULTS.primaryColor,
+      featuredChannelUuid: SYSTEM_DEFAULTS.featuredChannelUuid,
+      featuredBannerUrl: SYSTEM_DEFAULTS.featuredBannerUrl,
+      supportEmail: SYSTEM_DEFAULTS.supportEmail,
+      supportWhatsapp: SYSTEM_DEFAULTS.supportWhatsapp,
+    }
+  }
 
-  const merged = fromRows(rows)
-  return {
-    siteName: merged.siteName,
-    siteShortName: merged.siteShortName,
-    siteLogoUrl: merged.siteLogoUrl,
-    siteLogoDarkUrl: merged.siteLogoDarkUrl || merged.siteLogoUrl || SYSTEM_DEFAULTS.siteLogoDarkUrl,
-    siteLogoLightUrl: merged.siteLogoLightUrl || merged.siteLogoUrl || SYSTEM_DEFAULTS.siteLogoLightUrl,
-    primaryColor: merged.primaryColor,
-    featuredChannelUuid: merged.featuredChannelUuid,
-    featuredBannerUrl: merged.featuredBannerUrl,
-    supportEmail: merged.supportEmail,
-    supportWhatsapp: merged.supportWhatsapp,
+  try {
+    const rows = await prisma.systemConfig.findMany({
+      where: {
+        key: {
+          in: [
+            'site_name',
+            'site_short_name',
+            'site_logo_url',
+            'site_logo_dark_url',
+            'site_logo_light_url',
+            'primary_color',
+            'featured_channel_uuid',
+            'featured_banner_url',
+            'support_email',
+            'support_whatsapp',
+          ],
+        },
+      },
+      select: { key: true, value: true },
+    })
+
+    const merged = fromRows(rows)
+    return {
+      siteName: merged.siteName,
+      siteShortName: merged.siteShortName,
+      siteLogoUrl: merged.siteLogoUrl,
+      siteLogoDarkUrl: merged.siteLogoDarkUrl || merged.siteLogoUrl || SYSTEM_DEFAULTS.siteLogoDarkUrl,
+      siteLogoLightUrl: merged.siteLogoLightUrl || merged.siteLogoUrl || SYSTEM_DEFAULTS.siteLogoLightUrl,
+      primaryColor: merged.primaryColor,
+      featuredChannelUuid: merged.featuredChannelUuid,
+      featuredBannerUrl: merged.featuredBannerUrl,
+      supportEmail: merged.supportEmail,
+      supportWhatsapp: merged.supportWhatsapp,
+    }
+  } catch {
+    return {
+      siteName: SYSTEM_DEFAULTS.siteName,
+      siteShortName: SYSTEM_DEFAULTS.siteShortName,
+      siteLogoUrl: SYSTEM_DEFAULTS.siteLogoUrl,
+      siteLogoDarkUrl: SYSTEM_DEFAULTS.siteLogoDarkUrl,
+      siteLogoLightUrl: SYSTEM_DEFAULTS.siteLogoLightUrl,
+      primaryColor: SYSTEM_DEFAULTS.primaryColor,
+      featuredChannelUuid: SYSTEM_DEFAULTS.featuredChannelUuid,
+      featuredBannerUrl: SYSTEM_DEFAULTS.featuredBannerUrl,
+      supportEmail: SYSTEM_DEFAULTS.supportEmail,
+      supportWhatsapp: SYSTEM_DEFAULTS.supportWhatsapp,
+    }
   }
 }
 

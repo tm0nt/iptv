@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grilotv-config
+data:
+  APP_DOMAIN: "grilotv.online"
+  NODE_ENV: "production"
+  PORT: "3000"
+  NEXTAUTH_URL: "https://grilotv.online"
+  POSTGRES_HOST: "grilotv-postgres"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "iptv"
+  POSTGRES_USER: "grilotv"
+  RUN_SEED_ON_BOOT: "true"
+  SEED_MODE: "production"
+  SEED_ADMIN_NAME: "Administrador"
+  SEED_SITE_NAME: "IPTV"
+  SEED_SITE_SHORT_NAME: "IPTV"
+  SEED_SITE_LOGO_URL: "/logo-dark.png"
+  SEED_SITE_LOGO_DARK_URL: "/logo-dark.png"
+  SEED_SITE_LOGO_LIGHT_URL: "/logo-white.png"
+  SEED_PRIMARY_COLOR: "#73de90"
+  SEED_SUPPORT_EMAIL: "suporte@grilotv.online"
+  SEED_SUPPORT_WHATSAPP: ""
+  SEED_PIX_KEY: "suporte@grilotv.online"
+  SEED_PAYMENT_GATEWAY_PROVIDER: "mercadopago"
+  SEED_PAYMENT_GATEWAY_MODE: "single"
+  SEED_PAYMENT_GATEWAY_ENABLED: "mercadopago"
+  SEED_DEFAULT_COMMISSION: "0.20"
+  SEED_TRIAL_DAYS: "7"
+  SEED_AUDIT_RETENTION_DAYS: "90"

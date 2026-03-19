@@ -1,0 +1,13 @@
+.git
+.github
+.next
+node_modules
+npm-debug.log
+public/logos
+public/uploads
+.env
+.env.*
+!.env.docker
+README.md
+CHANGELOG.md
+tsconfig.tsbuildinfo
