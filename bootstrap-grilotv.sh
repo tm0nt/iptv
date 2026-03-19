@@ -5,7 +5,13 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$SCRIPT_DIR"
 K8S_DIR="$ROOT_DIR/k8s"
 HARDEN_DIR="$ROOT_DIR/ops/debian-hardening"
-SECRETS_FILE="${BOOTSTRAP_SECRETS_FILE:-$ROOT_DIR/.grilotv-bootstrap.secrets.env}"
+if [[ -n "${BOOTSTRAP_SECRETS_FILE:-}" ]]; then
+  SECRETS_FILE="$BOOTSTRAP_SECRETS_FILE"
+elif [[ "$(id -u)" -eq 0 ]]; then
+  SECRETS_FILE="/etc/grilotv/bootstrap.env"
+else
+  SECRETS_FILE="$ROOT_DIR/.grilotv-bootstrap.secrets.env"
+fi
 
 DRY_RUN="false"
 KEEP_RENDERED="false"
@@ -166,6 +172,7 @@ SEED_AUDIT_RETENTION_DAYS="${SEED_AUDIT_RETENTION_DAYS:-90}"
 
 persist_secrets() {
   umask 077
+  install -d -m 700 "$(dirname "$SECRETS_FILE")"
   cat >"$SECRETS_FILE" <<EOF
 NEXTAUTH_SECRET="$NEXTAUTH_SECRET"
 POSTGRES_PASSWORD="$POSTGRES_PASSWORD"
