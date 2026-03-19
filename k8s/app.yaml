@@ -71,18 +71,25 @@ spec:
               mountPath: /app/public/uploads
             - name: logos
               mountPath: /app/public/logos
+          startupProbe:
+            httpGet:
+              path: /login
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 60
           readinessProbe:
             httpGet:
               path: /login
               port: http
-            initialDelaySeconds: 20
-            periodSeconds: 10
+            initialDelaySeconds: 5
+            periodSeconds: 5
             timeoutSeconds: 5
           livenessProbe:
             httpGet:
               path: /login
               port: http
-            initialDelaySeconds: 40
+            initialDelaySeconds: 10
             periodSeconds: 20
             timeoutSeconds: 5
           resources:
