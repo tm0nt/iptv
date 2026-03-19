@@ -6,10 +6,12 @@ import { PWARegister } from '@/components/PWARegister'
 import { getPublicSystemConfig } from '@/lib/system-config'
 import './globals.css'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'IPTV',
   description: 'IPTV Premium — Canais, Filmes e Séries em HD',
-  manifest: '/manifest.webmanifest',
+  manifest: '/manifest.json',
   appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'IPTV' },
   icons: { icon: '/icons/icon-192.png', apple: '/icons/icon-192.png' },
 }

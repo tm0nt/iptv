@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { signIn, useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useTheme } from 'next-themes'
@@ -9,7 +9,17 @@ import { cn } from '@/lib/utils'
 import { useBranding } from '@/hooks/useBranding'
 import { BrandLogo } from '@/components/BrandLogo'
 
+export const dynamic = 'force-dynamic'
+
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginPageFallback />}>
+      <LoginPageContent />
+    </Suspense>
+  )
+}
+
+function LoginPageContent() {
   const { data: session, status } = useSession()
   const branding = useBranding()
   const router       = useRouter()
@@ -169,4 +179,8 @@ export default function LoginPage() {
       </div>
     </div>
   )
+}
+
+function LoginPageFallback() {
+  return <div className="min-h-screen bg-background" />
 }

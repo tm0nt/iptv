@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { signIn, useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -31,6 +31,8 @@ interface PaymentGatewayMeta {
 
 type Step = 'account' | 'pix' | 'waiting' | 'success'
 
+export const dynamic = 'force-dynamic'
+
 const INTERVAL_LABEL: Record<string, string> = {
   MONTHLY: '/mes',
   QUARTERLY: '/3 meses',
@@ -39,6 +41,14 @@ const INTERVAL_LABEL: Record<string, string> = {
 }
 
 export default function SignupPage() {
+  return (
+    <Suspense fallback={<SignupPageFallback />}>
+      <SignupPageContent />
+    </Suspense>
+  )
+}
+
+function SignupPageContent() {
   const { status } = useSession()
   const branding = useBranding()
   const router = useRouter()
@@ -799,6 +809,10 @@ export default function SignupPage() {
       </div>
     </div>
   )
+}
+
+function SignupPageFallback() {
+  return <div className="min-h-screen bg-background" />
 }
 
 function formatPhoneInput(value: string) {
