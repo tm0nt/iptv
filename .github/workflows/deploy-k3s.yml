@@ -27,5 +27,8 @@ jobs:
           command_timeout: 60m
           script: |
             cd /home/deployer/iptv
+            git fetch origin main --prune
+            git checkout main
+            git pull --ff-only origin main
             chmod +x ./ops/deploy-k3s.sh
-            ./ops/deploy-k3s.sh
+            ./ops/deploy-k3s.sh --skip-git
