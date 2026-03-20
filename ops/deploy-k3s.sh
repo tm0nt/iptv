@@ -174,8 +174,13 @@ build_and_import_image() {
   local image="${IMAGE_REPO}:${image_tag}"
   export DEPLOY_IMAGE="$image"
 
-  run_cmd docker build -t "$image" "$REPO_DIR"
-  run_privileged "docker save '$image' | /usr/local/bin/k3s ctr images import -"
+  if [[ -n "$SUDO" ]]; then
+    run_shell "$SUDO /usr/bin/docker build -t '$image' '$REPO_DIR'"
+    run_shell "$SUDO /usr/bin/docker save '$image' | $SUDO /usr/local/bin/k3s ctr images import -"
+  else
+    run_cmd docker build -t "$image" "$REPO_DIR"
+    run_shell "docker save '$image' | /usr/local/bin/k3s ctr images import -"
+  fi
 }
 
 apply_manifests() {
