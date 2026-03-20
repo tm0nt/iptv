@@ -146,7 +146,8 @@ preflight() {
   fi
 
   command -v sudo >/dev/null 2>&1 || die "sudo e necessario para o deploy automatico."
-  sudo -n true >/dev/null 2>&1 || die "O usuario atual precisa de sudo sem senha para docker e k3s. Instale /etc/sudoers.d/grilotv-deployer antes de rodar o deploy."
+  sudo -n /usr/bin/docker ps >/dev/null 2>&1 || die "O usuario atual precisa de sudo sem senha para docker. Instale /etc/sudoers.d/grilotv-deployer antes de rodar o deploy."
+  sudo -n /usr/local/bin/k3s kubectl get nodes >/dev/null 2>&1 || die "O usuario atual precisa de sudo sem senha para k3s. Instale /etc/sudoers.d/grilotv-deployer antes de rodar o deploy."
 }
 
 sync_repo() {
