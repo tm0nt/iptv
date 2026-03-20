@@ -140,7 +140,13 @@ preflight() {
   [[ -d "$REPO_DIR/.git" ]] || die "Repositorio Git nao encontrado em $REPO_DIR"
   require_cmd git
   require_cmd docker
-  [[ "$DRY_RUN" == "true" ]] || command -v sudo >/dev/null 2>&1 || [[ "$(id -u)" -eq 0 ]] || die "sudo e necessario para o deploy automatico."
+
+  if [[ "$DRY_RUN" == "true" || "$(id -u)" -eq 0 ]]; then
+    return
+  fi
+
+  command -v sudo >/dev/null 2>&1 || die "sudo e necessario para o deploy automatico."
+  sudo -n true >/dev/null 2>&1 || die "O usuario atual precisa de sudo sem senha para docker e k3s. Instale /etc/sudoers.d/grilotv-deployer antes de rodar o deploy."
 }
 
 sync_repo() {
