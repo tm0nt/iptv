@@ -29,6 +29,24 @@ interface ImportResult {
   }
 }
 
+async function readJsonResponse<T>(res: Response): Promise<T> {
+  const text = await res.text()
+
+  if (!text) {
+    throw new Error('Resposta vazia do servidor')
+  }
+
+  try {
+    return JSON.parse(text) as T
+  } catch {
+    const message = text.startsWith('<')
+      ? 'O servidor respondeu com um erro inesperado. Tente novamente em instantes.'
+      : text.slice(0, 180)
+
+    throw new Error(message)
+  }
+}
+
 const MAX_MB    = 200
 const MAX_BYTES = MAX_MB * 1024 * 1024
 const fmtBytes  = (b: number) => b < 1024 ? `${b}B` : b < 1024**2 ? `${(b/1024).toFixed(0)}KB` : `${(b/1024**2).toFixed(1)}MB`
@@ -85,8 +103,8 @@ export default function AdminImport() {
           body: JSON.stringify({ content: paste }),
         })
       }
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
+      const data = await readJsonResponse<PreviewData & { error?: string }>(res)
+      if (!res.ok) throw new Error(data.error || 'Falha ao analisar o arquivo M3U')
       setPreview(data); setStep('previewed')
     } catch (e: any) { setErrorMsg(e.message); setStep('error') }
   }
@@ -110,8 +128,8 @@ export default function AdminImport() {
         })
       }
       clearInterval(prog); setProgress(100)
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
+      const data = await readJsonResponse<ImportResult & { error?: string }>(res)
+      if (!res.ok) throw new Error(data.error || 'Falha ao importar a lista M3U')
       setResult(data); setStep('done')
     } catch (e: any) { clearInterval(prog); setErrorMsg(e.message); setStep('error') }
   }
