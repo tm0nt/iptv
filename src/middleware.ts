@@ -5,6 +5,7 @@ const PUBLIC = [
   '/login', '/signup', '/api/auth', '/api/affiliate', '/api/plans',
   '/api/payment/gateway',
   '/api/payment/webhook',
+  '/api/health',
 
   '/_next', '/icons', '/manifest.json', '/sw.js', '/favicon',
 ]
