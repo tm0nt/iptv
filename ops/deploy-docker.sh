@@ -6,11 +6,13 @@ REPO_DIR="${REPO_DIR:-$ROOT_DIR}"
 BRANCH="${BRANCH:-main}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml}"
 ENV_FILE="${ENV_FILE:-.env.docker}"
+LOCAL_ENV_FILE="${LOCAL_ENV_FILE:-.env.docker.local}"
 FORCE_SYNC="${FORCE_SYNC:-false}"
 SKIP_GIT="${SKIP_GIT:-false}"
 APP_DOMAIN="${APP_DOMAIN:-grilotv.online}"
 DRY_RUN="false"
 DIAGNOSTICS_RUNNING="false"
+MERGED_ENV_FILE=""
 
 usage() {
   cat <<'EOF'
@@ -22,6 +24,7 @@ Variaveis uteis:
   BRANCH=main
   COMPOSE_FILE=docker-compose.yml
   ENV_FILE=.env.docker
+  LOCAL_ENV_FILE=.env.docker.local
   FORCE_SYNC=true
 
 Exemplos:
@@ -87,6 +90,12 @@ run_shell() {
   fi
 }
 
+cleanup() {
+  if [[ -n "$MERGED_ENV_FILE" && -f "$MERGED_ENV_FILE" ]]; then
+    rm -f "$MERGED_ENV_FILE"
+  fi
+}
+
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "Comando obrigatorio ausente: $1"
 }
@@ -110,7 +119,10 @@ docker_cmd() {
 }
 
 compose_cmd() {
-  printf '%s compose --env-file %q -f %q' "$(docker_cmd)" "$ENV_FILE" "$COMPOSE_FILE"
+  local compose_env_file
+
+  compose_env_file="${MERGED_ENV_FILE:-$REPO_DIR/$ENV_FILE}"
+  printf '%s compose --env-file %q -f %q' "$(docker_cmd)" "$compose_env_file" "$COMPOSE_FILE"
 }
 
 dump_diagnostics() {
@@ -136,6 +148,7 @@ on_err() {
 }
 
 trap 'on_err $LINENO' ERR
+trap cleanup EXIT
 
 preflight() {
   [[ -d "$REPO_DIR/.git" ]] || die "Repositorio Git nao encontrado em $REPO_DIR"
@@ -150,6 +163,21 @@ preflight() {
 
   command -v sudo >/dev/null 2>&1 || die "sudo e necessario para o deploy automatico."
   sudo -n "$DOCKER_BIN" ps >/dev/null 2>&1 || die "O usuario atual precisa de sudo sem senha para docker."
+}
+
+build_compose_env() {
+  local base_env local_env
+
+  base_env="$REPO_DIR/$ENV_FILE"
+  local_env="$REPO_DIR/$LOCAL_ENV_FILE"
+  MERGED_ENV_FILE="$(mktemp /tmp/grilotv-compose-env.XXXXXX)"
+
+  cat "$base_env" > "$MERGED_ENV_FILE"
+
+  if [[ -f "$local_env" ]]; then
+    printf '\n' >> "$MERGED_ENV_FILE"
+    cat "$local_env" >> "$MERGED_ENV_FILE"
+  fi
 }
 
 sync_repo() {
@@ -242,6 +270,7 @@ verify_stack() {
 main() {
   preflight
   sync_repo
+  build_compose_env
   validate_compose
   deploy_stack
   verify_stack

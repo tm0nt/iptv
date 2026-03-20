@@ -9,3 +9,4 @@
 node_modules/
 backups/
 .grilotv-bootstrap.secrets.env
+.env.docker.local

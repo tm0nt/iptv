@@ -4,7 +4,10 @@ services:
     container_name: grilotv-db
     restart: unless-stopped
     env_file:
-      - .env.docker
+      - path: .env.docker
+        required: true
+      - path: .env.docker.local
+        required: false
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -26,7 +29,10 @@ services:
       db:
         condition: service_healthy
     env_file:
-      - .env.docker
+      - path: .env.docker
+        required: true
+      - path: .env.docker.local
+        required: false
     volumes:
       - app_uploads:/app/public/uploads
       - app_logos:/app/public/logos
@@ -48,7 +54,10 @@ services:
       app:
         condition: service_healthy
     env_file:
-      - .env.docker
+      - path: .env.docker
+        required: true
+      - path: .env.docker.local
+        required: false
     ports:
       - "80:80"
       - "443:443"
@@ -64,7 +73,10 @@ services:
     container_name: grilotv-watchtower
     restart: unless-stopped
     env_file:
-      - .env.docker
+      - path: .env.docker
+        required: true
+      - path: .env.docker.local
+        required: false
     depends_on:
       caddy:
         condition: service_started

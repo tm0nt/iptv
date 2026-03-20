@@ -29,6 +29,7 @@ jobs:
             cd /home/deployer/iptv
             git fetch origin main --prune
             git checkout main
-            git pull --ff-only origin main
+            git reset --hard origin/main
+            git clean -fd
             chmod +x ./ops/deploy-docker.sh
             ./ops/deploy-docker.sh --skip-git

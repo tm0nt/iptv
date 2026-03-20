@@ -4,13 +4,14 @@ Fluxo recomendado agora:
 
 - push em `main`
 - GitHub Actions abre SSH na VPS
-- a VPS atualiza o clone
+- a VPS sincroniza o clone com `origin/main`
 - a VPS roda [deploy-docker.sh](/home/montenegro/Documentos/iptv-system/ops/deploy-docker.sh)
 - o script faz:
   - validacao do `docker compose`
   - `docker compose up -d --build --remove-orphans`
   - espera `db`, `app` e `caddy`
-  - valida `https://127.0.0.1/api/health` com `Host: grilotv.online`
+  - valida a app diretamente pelo container
+  - faz uma checagem opcional do HTTPS via Caddy
 
 ## 1. Preparar o usuario `deployer`
 
@@ -64,7 +65,23 @@ Ele dispara em:
 - push na `main`
 - execucao manual
 
-## 5. Testar manualmente na VPS
+## 5. Configuracao local da VPS
+
+Guarde os segredos locais em um arquivo nao versionado:
+
+```bash
+cp .env.docker.local.example .env.docker.local
+```
+
+Depois ajuste em `.env.docker.local` pelo menos:
+
+- `NEXTAUTH_SECRET`
+- `POSTGRES_PASSWORD`
+- `DATABASE_URL`
+- `SEED_ADMIN_PASSWORD`
+- tokens de gateway
+
+## 6. Testar manualmente na VPS
 
 ```bash
 cd /home/deployer/iptv
@@ -74,11 +91,6 @@ cd /home/deployer/iptv
 
 ## Observacoes
 
-- o script falha se encontrar alteracoes locais no repo
-- se voce realmente quiser sobrescrever tudo na VPS:
-
-```bash
-FORCE_SYNC=true ./ops/deploy-docker.sh
-```
-
-- isso usa `git reset --hard`, entao so use quando o clone da VPS for dedicado ao deploy
+- o clone da VPS deve ser dedicado ao deploy
+- o workflow faz `git reset --hard origin/main` e `git clean -fd`
+- `.env.docker.local` permanece preservado porque fica ignorado no Git

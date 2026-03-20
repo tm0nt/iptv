@@ -33,6 +33,20 @@ Troque pelo menos:
 - `SEED_MP_ACCESS_TOKEN` ou `SEED_EXPFY_*` se for seedar gateway
 - `ACME_EMAIL`
 
+Para a VPS, o recomendado e guardar os segredos reais em:
+
+```bash
+.env.docker.local
+```
+
+Crie a partir do exemplo:
+
+```bash
+cp .env.docker.local.example .env.docker.local
+```
+
+Esse arquivo fica fora do Git e sobrepoe os valores padrao do `.env.docker`.
+
 ## Subida
 
 ```bash
@@ -110,6 +124,11 @@ Workflow:
 Guia:
 
 - [AUTO-DEPLOY.md](/home/montenegro/Documentos/iptv-system/ops/AUTO-DEPLOY.md)
+
+Observacao:
+
+- o workflow ressincroniza o clone da VPS com `origin/main`
+- por isso os segredos locais devem ficar em `.env.docker.local`, nao em arquivos versionados
 
 ## Parar
 
