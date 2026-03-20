@@ -6,6 +6,7 @@ const PUBLIC = [
   '/api/payment/gateway',
   '/api/payment/webhook',
   '/api/health',
+  '/.well-known/acme-challenge',
 
   '/_next', '/icons', '/manifest.json', '/sw.js', '/favicon',
 ]

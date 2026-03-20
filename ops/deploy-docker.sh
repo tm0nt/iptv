@@ -232,7 +232,11 @@ verify_stack() {
   wait_for_container "grilotv-caddy" 120
 
   run_shell "cd '$REPO_DIR' && $compose ps"
-  run_shell "curl -kfsS -H 'Host: ${APP_DOMAIN}' https://127.0.0.1/api/health >/dev/null"
+  run_shell "$(docker_cmd) exec grilotv-app curl -fsS http://127.0.0.1:3000/api/health >/dev/null"
+
+  # O deploy nao deve falhar so porque o Caddy ainda esta emitindo/renovando TLS.
+  # Fazemos uma checagem opcional para dar visibilidade sem bloquear a entrega.
+  run_shell "curl -kfsS -H 'Host: ${APP_DOMAIN}' https://127.0.0.1/api/health >/dev/null || true"
 }
 
 main() {
