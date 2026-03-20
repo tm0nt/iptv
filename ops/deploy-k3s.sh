@@ -113,24 +113,24 @@ run_privileged() {
 
 kube_cmd() {
   if [[ "$DRY_RUN" == "true" ]]; then
-    if command -v kubectl >/dev/null 2>&1; then
-      printf 'kubectl'
-    elif [[ -x /usr/local/bin/k3s ]]; then
+    if [[ -x /usr/local/bin/k3s ]]; then
       printf '/usr/local/bin/k3s kubectl'
+    elif command -v kubectl >/dev/null 2>&1; then
+      printf 'kubectl'
     else
       printf 'kubectl'
     fi
     return
   fi
 
-  if command -v kubectl >/dev/null 2>&1; then
-    printf 'kubectl'
-  elif [[ -x /usr/local/bin/k3s ]]; then
+  if [[ -x /usr/local/bin/k3s ]]; then
     if [[ -n "$SUDO" ]]; then
       printf '%s /usr/local/bin/k3s kubectl' "$SUDO"
     else
       printf '/usr/local/bin/k3s kubectl'
     fi
+  elif command -v kubectl >/dev/null 2>&1; then
+    printf 'kubectl'
   else
     die "Nao encontrei kubectl nem k3s."
   fi
