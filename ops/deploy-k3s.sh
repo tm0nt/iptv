@@ -97,7 +97,7 @@ require_cmd() {
 
 if [[ "$(id -u)" -eq 0 ]]; then
   SUDO=""
-elif sudo -n true >/dev/null 2>&1; then
+elif command -v sudo >/dev/null 2>&1; then
   SUDO="sudo -n"
 else
   SUDO=""
