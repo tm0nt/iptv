@@ -1,20 +1,20 @@
-# Auto Deploy
+# Auto Deploy Docker
 
-Fluxo recomendado para este projeto:
+Fluxo recomendado agora:
 
 - push em `main`
 - GitHub Actions abre SSH na VPS
-- a VPS roda [deploy-k3s.sh](/home/montenegro/Documentos/iptv-system/ops/deploy-k3s.sh)
+- a VPS atualiza o clone
+- a VPS roda [deploy-docker.sh](/home/montenegro/Documentos/iptv-system/ops/deploy-docker.sh)
 - o script faz:
-  - `git pull`
-  - `docker build`
-  - import da imagem no `k3s`
-  - apply dos manifests operacionais
-  - `rollout status`
+  - validacao do `docker compose`
+  - `docker compose up -d --build --remove-orphans`
+  - espera `db`, `app` e `caddy`
+  - valida `https://127.0.0.1/api/health` com `Host: grilotv.online`
 
 ## 1. Preparar o usuario `deployer`
 
-Como o deploy precisa usar `docker` e `k3s`, deixe um sudo controlado para o usuario `deployer`:
+Como o deploy precisa usar `docker`, deixe um sudo controlado para o usuario `deployer`:
 
 ```bash
 sudo cp ops/sudoers/grilotv-deployer /etc/sudoers.d/grilotv-deployer
@@ -48,7 +48,7 @@ No repositorio GitHub, crie estes `Actions secrets`:
 
 Valores esperados:
 
-- `VPS_HOST`: `155.117.45.112`
+- `VPS_HOST`: IP da VPS
 - `VPS_PORT`: `22`
 - `VPS_USER`: `deployer`
 - `VPS_SSH_KEY`: chave privada usada so para o deploy
@@ -57,7 +57,7 @@ Valores esperados:
 
 O workflow fica em:
 
-- [.github/workflows/deploy-k3s.yml](/home/montenegro/Documentos/iptv-system/.github/workflows/deploy-k3s.yml)
+- [.github/workflows/deploy-docker.yml](/home/montenegro/Documentos/iptv-system/.github/workflows/deploy-docker.yml)
 
 Ele dispara em:
 
@@ -68,8 +68,8 @@ Ele dispara em:
 
 ```bash
 cd /home/deployer/iptv
-./ops/deploy-k3s.sh --dry-run
-./ops/deploy-k3s.sh
+./ops/deploy-docker.sh --dry-run
+./ops/deploy-docker.sh
 ```
 
 ## Observacoes
@@ -78,7 +78,7 @@ cd /home/deployer/iptv
 - se voce realmente quiser sobrescrever tudo na VPS:
 
 ```bash
-FORCE_SYNC=true ./ops/deploy-k3s.sh
+FORCE_SYNC=true ./ops/deploy-docker.sh
 ```
 
 - isso usa `git reset --hard`, entao so use quando o clone da VPS for dedicado ao deploy

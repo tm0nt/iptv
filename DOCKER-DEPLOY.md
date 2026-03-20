@@ -6,12 +6,19 @@ Stack de producao para o projeto:
 - `app`: Next.js + Prisma + seed de producao
 - `caddy`: proxy reverso com HTTPS automatico para `grilotv.online`
 - `watchtower`: auto-update dos containers marcados
+- `deploy-docker.sh`: deploy automatizado sem K3s
 
 ## Antes de subir
 
 1. Aponte os DNS `A` de `grilotv.online` e `www.grilotv.online` para o IP da VPS.
 2. Garanta que as portas `80` e `443` estejam livres.
 3. Se o aaPanel estiver ocupando `80/443` com Nginx/Apache, desative esse site/proxy antes de subir o stack.
+4. Se a VPS ainda estiver com `k3s`/Traefik rodando, desligue antes de subir o stack Docker:
+
+```bash
+sudo systemctl disable --now k3s
+sudo /usr/local/bin/k3s-killall.sh || true
+```
 
 ## Variaveis
 
@@ -30,6 +37,12 @@ Troque pelo menos:
 
 ```bash
 docker compose up -d --build
+```
+
+Ou use o script de deploy:
+
+```bash
+./ops/deploy-docker.sh
 ```
 
 ## Ver logs
@@ -81,6 +94,22 @@ Arquivos gerados em:
 git pull
 docker compose up -d --build
 ```
+
+Ou:
+
+```bash
+./ops/deploy-docker.sh
+```
+
+## Auto deploy com GitHub Actions
+
+Workflow:
+
+- [.github/workflows/deploy-docker.yml](/home/montenegro/Documentos/iptv-system/.github/workflows/deploy-docker.yml)
+
+Guia:
+
+- [AUTO-DEPLOY.md](/home/montenegro/Documentos/iptv-system/ops/AUTO-DEPLOY.md)
 
 ## Parar
 

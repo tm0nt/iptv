@@ -1,4 +1,4 @@
-name: Deploy K3s
+name: Deploy Docker
 
 on:
   push:
@@ -30,5 +30,5 @@ jobs:
             git fetch origin main --prune
             git checkout main
             git pull --ff-only origin main
-            chmod +x ./ops/deploy-k3s.sh
-            ./ops/deploy-k3s.sh --skip-git
+            chmod +x ./ops/deploy-docker.sh
+            ./ops/deploy-docker.sh --skip-git

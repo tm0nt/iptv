@@ -5,7 +5,7 @@ Guia pratico para sua VPS Debian com usuario `deployer`.
 Objetivo:
 
 - deixar a VPS mais segura para a aplicacao IPTV
-- preparar o host para `k3s`
+- preparar o host para `docker compose`
 - reduzir superficie de ataque
 
 ## 1. Atualize o sistema
@@ -48,12 +48,6 @@ sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
 ```
 
-Se voce for acessar a API do Kubernetes remotamente, libere `6443` **so do seu IP**:
-
-```bash
-sudo ufw allow from SEU_IP_PUBLICO to any port 6443 proto tcp
-```
-
 Depois:
 
 ```bash
@@ -93,31 +87,33 @@ Arquivo usado:
 
 - [99-grilotv.conf](/home/montenegro/Documentos/iptv-system/ops/debian-hardening/sysctl.d/99-grilotv.conf)
 
-## 7. Cuidados com Docker e k3s
+## 7. Cuidados com Docker
 
 - nao exponha o socket Docker em TCP
 - nao coloque usuarios comuns no grupo `docker` sem necessidade
 - se possivel, use `sudo docker ...` em vez de acesso permanente ao socket
-- se for usar `k3s`, prefira o runtime dele para execucao e o Docker apenas para build/import de imagem
 
-## 8. Instale o k3s
+## 8. Instale o Docker Engine e Compose Plugin
 
 ```bash
-curl -sfL https://get.k3s.io | sh -
-sudo kubectl get nodes
+curl -fsSL https://get.docker.com | sudo sh
+sudo apt install -y docker-compose-plugin
+sudo systemctl enable --now docker
+sudo docker version
+sudo docker compose version
 ```
 
-## 9. Restrinja o acesso ao Kubernetes
+## 9. Restrinja o acesso do deploy ao Docker
 
-- nao deixe `6443` aberto para o mundo
-- mantenha acesso apenas do seu IP
-- proteja o arquivo `/etc/rancher/k3s/k3s.yaml`
+- prefira sudoers restrito em vez de colocar `deployer` no grupo `docker`
+- mantenha o socket Docker apenas local
 
 Exemplo:
 
 ```bash
-sudo chmod 600 /etc/rancher/k3s/k3s.yaml
-sudo chown root:root /etc/rancher/k3s/k3s.yaml
+sudo cp ops/sudoers/grilotv-deployer /etc/sudoers.d/grilotv-deployer
+sudo chmod 440 /etc/sudoers.d/grilotv-deployer
+sudo visudo -cf /etc/sudoers.d/grilotv-deployer
 ```
 
 ## 10. Segredos e operacao
@@ -126,7 +122,7 @@ sudo chown root:root /etc/rancher/k3s/k3s.yaml
 - guarde senhas em cofre
 - rode backup frequente do banco
 - monitore uso de disco, RAM e CPU
-- use alertas para expiracao de disco e falhas de pod
+- use alertas para expiracao de disco e falhas de container
 
 ## Checklist minimo
 
@@ -135,6 +131,6 @@ sudo chown root:root /etc/rancher/k3s/k3s.yaml
 - `ufw` ativo
 - `fail2ban` ativo
 - `unattended-upgrades` ativo
-- `6443` restrito
+- Docker sem socket exposto em TCP
 - backup funcionando
 - segredos fora do Git
