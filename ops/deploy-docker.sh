@@ -263,8 +263,8 @@ verify_stack() {
   run_shell "$(docker_cmd) exec grilotv-app curl -fsS http://127.0.0.1:3000/api/health >/dev/null"
 
   # O deploy nao deve falhar so porque o Caddy ainda esta emitindo/renovando TLS.
-  # Fazemos uma checagem opcional para dar visibilidade sem bloquear a entrega.
-  run_shell "curl -kfsS -H 'Host: ${APP_DOMAIN}' https://127.0.0.1/api/health >/dev/null || true"
+  # Fazemos uma checagem opcional com SNI correto para dar visibilidade sem bloquear a entrega.
+  run_shell "curl -kfsS --resolve '${APP_DOMAIN}:443:127.0.0.1' 'https://${APP_DOMAIN}/api/health' >/dev/null || true"
 }
 
 main() {
