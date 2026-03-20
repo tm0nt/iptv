@@ -9,6 +9,7 @@ IMAGE_REPO="${IMAGE_REPO:-grilotv/iptv-app}"
 APP_DEPLOYMENT_NAME="${APP_DEPLOYMENT_NAME:-grilotv-app}"
 DOCKER_BIN="${DOCKER_BIN:-/usr/bin/docker}"
 K3S_BIN="${K3S_BIN:-/usr/local/bin/k3s}"
+MIN_APP_REPLICAS="${MIN_APP_REPLICAS:-2}"
 FORCE_SYNC="${FORCE_SYNC:-false}"
 SKIP_GIT="${SKIP_GIT:-false}"
 DRY_RUN="false"
@@ -243,11 +244,31 @@ apply_manifests() {
   run_shell "$kube get pods,svc,endpoints,ingress,certificate -n '$NAMESPACE'"
 }
 
+verify_app_availability() {
+  local kube desired ready
+
+  kube="$(kube_cmd)"
+  desired="$(bash -o pipefail -lc "$kube get deployment '$APP_DEPLOYMENT_NAME' -n '$NAMESPACE' -o jsonpath='{.spec.replicas}'")"
+  ready="$(bash -o pipefail -lc "$kube get deployment '$APP_DEPLOYMENT_NAME' -n '$NAMESPACE' -o jsonpath='{.status.readyReplicas}'")"
+
+  desired="${desired:-0}"
+  ready="${ready:-0}"
+
+  if (( desired < MIN_APP_REPLICAS )); then
+    die "Deployment '$APP_DEPLOYMENT_NAME' terminou com apenas ${desired} replica(s). O minimo esperado e ${MIN_APP_REPLICAS}."
+  fi
+
+  if (( ready < desired )); then
+    die "Deployment '$APP_DEPLOYMENT_NAME' terminou com ${ready}/${desired} replicas prontas."
+  fi
+}
+
 main() {
   preflight
   sync_repo
   build_and_import_image
   apply_manifests
+  verify_app_availability
   log "Deploy concluido com a imagem $DEPLOY_IMAGE"
 }
 
