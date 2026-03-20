@@ -81,6 +81,14 @@ const DEFAULT_VALUES: SystemConfigValues = {
   auditRetentionDays: SYSTEM_DEFAULTS.auditRetentionDays,
 }
 
+function shouldSkipDatabaseAccess() {
+  return (
+    process.env.SKIP_DB_DURING_BUILD === 'true' ||
+    process.env.npm_lifecycle_event === 'build' ||
+    process.env.NEXT_PHASE === 'phase-production-build'
+  )
+}
+
 function fromRows(
   rows: Array<{ key: string; value: string }>,
 ): SystemConfigValues {
@@ -96,7 +104,7 @@ function fromRows(
 }
 
 export async function getPublicSystemConfig() {
-  if (process.env.SKIP_DB_DURING_BUILD === 'true') {
+  if (shouldSkipDatabaseAccess()) {
     return {
       siteName: SYSTEM_DEFAULTS.siteName,
       siteShortName: SYSTEM_DEFAULTS.siteShortName,
@@ -162,6 +170,10 @@ export async function getPublicSystemConfig() {
 }
 
 export async function getAdminSystemConfig() {
+  if (shouldSkipDatabaseAccess()) {
+    return { ...DEFAULT_VALUES }
+  }
+
   const rows = await prisma.systemConfig.findMany({
     where: {
       key: {
@@ -256,6 +268,10 @@ export async function setAdminSystemConfig(input: {
 }
 
 export async function getMercadoPagoAccessToken() {
+  if (shouldSkipDatabaseAccess()) {
+    return ''
+  }
+
   const row = await prisma.systemConfig.findUnique({
     where: { key: 'mercadopago_access_token' },
     select: { value: true },
@@ -272,6 +288,18 @@ function parseGatewayList(raw: string) {
 }
 
 export async function getPaymentGatewayConfig() {
+  if (shouldSkipDatabaseAccess()) {
+    return {
+      provider: SYSTEM_DEFAULTS.paymentGatewayProvider as PaymentGatewayId,
+      mode: SYSTEM_DEFAULTS.paymentGatewayMode as PaymentGatewayMode,
+      enabled: parseGatewayList(SYSTEM_DEFAULTS.paymentGatewayEnabled),
+      rotationCursor: Math.max(0, parseInt(SYSTEM_DEFAULTS.paymentGatewayRotationCursor, 10) || 0),
+      mercadopagoAccessToken: '',
+      expfypayPublicKey: '',
+      expfypaySecretKey: '',
+    }
+  }
+
   const config = await getAdminSystemConfig()
 
   return {
@@ -286,6 +314,10 @@ export async function getPaymentGatewayConfig() {
 }
 
 export async function getAuditRetentionDays() {
+  if (shouldSkipDatabaseAccess()) {
+    return parseInt(SYSTEM_DEFAULTS.auditRetentionDays, 10)
+  }
+
   const row = await prisma.systemConfig.findUnique({
     where: { key: 'audit_retention_days' },
     select: { value: true },
