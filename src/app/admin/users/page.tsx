@@ -1,9 +1,10 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { Search, UserPlus, Shield, User, UserCheck, Loader2, X, Check, ChevronLeft, ChevronRight, MonitorPlay, Clock3, Users } from 'lucide-react'
+import { Search, UserPlus, Shield, User, UserCheck, Loader2, X, Check, ChevronLeft, ChevronRight, MonitorPlay, Clock3, Users, Infinity } from 'lucide-react'
 import { formatDate, cn } from '@/lib/utils'
 import { TableSkeleton } from '@/components/ui/skeleton'
 import { PageIntro } from '@/components/admin/PageIntro'
+import { getPlanDeviceLabel, getPlanDurationLabel, isAdminOnlyPlan, isUnlimitedPlan } from '@/lib/plan-utils'
 
 interface UserRow {
   id: string; name: string; email: string; role: string
@@ -12,7 +13,20 @@ interface UserRow {
   activeSessionsCount: number
   activePlanName?: string | null
   activePlanMaxDevices?: number | null
+  activePlanIsUnlimited?: boolean
   _count: { subscriptions: number; clientsAsReseller: number }
+}
+
+interface PlanOption {
+  id: string
+  name: string
+  price: number
+  interval: string
+  durationDays: number
+  maxDevices: number
+  adminOnly?: boolean
+  isUnlimited?: boolean
+  active: boolean
 }
 
 interface PlaybackDetails {
@@ -37,6 +51,7 @@ interface PlaybackDetails {
   activePlan?: {
     name: string
     maxDevices: number
+    isUnlimited?: boolean
     expiresAt: string
   } | null
 }
@@ -46,7 +61,17 @@ const ROLE: Record<string, { label: string; icon: any; badge: string }> = {
   RESELLER: { label: 'Revendedor', icon: UserCheck, badge: 'badge-violet' },
   CLIENT:   { label: 'Cliente',    icon: User,      badge: 'badge-blue'   },
 }
-const emptyForm = { id: '', name: '', email: '', password: '', role: 'CLIENT', active: true, commissionRate: '0.20' }
+const emptyForm = {
+  id: '',
+  name: '',
+  email: '',
+  password: '',
+  role: 'CLIENT',
+  active: true,
+  commissionRate: '0.20',
+  assignPlanNow: true,
+  planId: '',
+}
 
 export default function AdminUsers() {
   const LIMIT = 20
@@ -62,6 +87,8 @@ export default function AdminUsers() {
   const [playbackDetails, setPlaybackDetails] = useState<PlaybackDetails | null>(null)
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [endingSessionId, setEndingSessionId] = useState<string | null>(null)
+  const [plans, setPlans] = useState<PlanOption[]>([])
+  const [saveError, setSaveError] = useState('')
 
   async function load() {
     setLoading(true)
@@ -75,6 +102,13 @@ export default function AdminUsers() {
     setUsers(data.users || []); setTotal(data.total || 0); setLoading(false)
   }
   useEffect(() => { load() }, [roleFilter, search, page])
+
+  useEffect(() => {
+    fetch('/api/admin/plans')
+      .then(response => response.json())
+      .then(data => setPlans(data.plans || []))
+      .catch(() => setPlans([]))
+  }, [])
 
   useEffect(() => {
     setPage(1)
@@ -122,13 +156,23 @@ export default function AdminUsers() {
 
   async function handleSave() {
     setSaving(true)
+    setSaveError('')
     try {
-      await fetch('/api/admin/users', {
+      if (form.role === 'CLIENT' && form.assignPlanNow && !form.planId) {
+        throw new Error('Selecione um plano para entregar ao cliente.')
+      }
+      const response = await fetch('/api/admin/users', {
         method: form.id ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, commissionRate: parseFloat(form.commissionRate) }),
       })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data.error || 'Nao foi possivel salvar o usuario.')
+      }
       await load(); setModal(false)
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Nao foi possivel salvar o usuario.')
     } finally { setSaving(false) }
   }
 
@@ -141,7 +185,7 @@ export default function AdminUsers() {
         title="Gestão de usuários"
         description={`${total.toLocaleString()} cadastro(s) entre clientes, revendedores e administradores.`}
         actions={(
-          <button onClick={() => { setForm(emptyForm); setModal(true) }} className="btn-primary py-2.5 px-4 text-[13px]">
+          <button onClick={() => { setForm(emptyForm); setSaveError(''); setModal(true) }} className="btn-primary py-2.5 px-4 text-[13px]">
             <UserPlus className="w-3.5 h-3.5" /> Novo Usuário
           </button>
         )}
@@ -191,7 +235,9 @@ export default function AdminUsers() {
                     <tr key={user.id} className="cursor-pointer"
                       onClick={() => {
                         setForm({ id: user.id, name: user.name, email: user.email, password: '',
-                          role: user.role, active: user.active, commissionRate: String(user.commissionRate || .2) })
+                          role: user.role, active: user.active, commissionRate: String(user.commissionRate || .2),
+                          assignPlanNow: false, planId: '' })
+                        setSaveError('')
                         setModal(true)
                       }}>
                       <td>
@@ -216,7 +262,10 @@ export default function AdminUsers() {
                             <div>
                               <p className="text-[13px] font-medium text-foreground">{user.activePlanName}</p>
                               <p className="text-[11px] text-muted-foreground">
-                                {user.activePlanMaxDevices || 1} tela(s) liberada(s)
+                                {getPlanDeviceLabel({
+                                  maxDevices: user.activePlanMaxDevices,
+                                  isUnlimited: user.activePlanIsUnlimited,
+                                })}
                               </p>
                             </div>
                           ) : (
@@ -244,7 +293,9 @@ export default function AdminUsers() {
                         {user.role === 'CLIENT' ? (
                           <div>
                             <p className="text-[13px] font-medium text-foreground">
-                              {user.activeSessionsCount}/{user.activePlanMaxDevices || 1}
+                              {user.activePlanIsUnlimited
+                                ? `${user.activeSessionsCount}/Sem limite`
+                                : `${user.activeSessionsCount}/${user.activePlanMaxDevices || 1}`}
                             </p>
                             <p className="text-[11px] text-muted-foreground">tela(s) em uso agora</p>
                           </div>
@@ -339,6 +390,86 @@ export default function AdminUsers() {
 
               {form.role === 'CLIENT' && (
                 <div className="rounded-[24px] bg-secondary p-4 space-y-4">
+                  <div className="rounded-2xl bg-background p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[14px] font-semibold text-foreground">Entrega de plano</p>
+                        <p className="text-[12px] text-muted-foreground">
+                          Crie o cliente e ja entregue uma assinatura ativa sem precisar passar pelo checkout.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setForm(current => ({ ...current, assignPlanNow: !current.assignPlanNow }))}
+                        className={cn(
+                          'w-10 h-6 rounded-full transition-colors relative flex-shrink-0',
+                          form.assignPlanNow ? 'bg-[var(--apple-blue)]' : 'bg-border',
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform',
+                            form.assignPlanNow && 'translate-x-4',
+                          )}
+                        />
+                      </button>
+                    </div>
+
+                    {form.assignPlanNow && (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-label mb-1.5 block">Plano a entregar</label>
+                          <select
+                            value={form.planId}
+                            onChange={e => setForm(current => ({ ...current, planId: e.target.value }))}
+                            className="field-input"
+                          >
+                            <option value="">Selecione um plano</option>
+                            {plans.filter(plan => plan.active).map(plan => (
+                              <option key={plan.id} value={plan.id}>
+                                {plan.name} · {getPlanDurationLabel(plan)} · {getPlanDeviceLabel(plan)}
+                                {isAdminOnlyPlan(plan) ? ' · Somente admin' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {plans.find(plan => plan.id === form.planId) && (
+                          <div className="rounded-2xl border border-border/60 bg-card px-4 py-3">
+                            {(() => {
+                              const selectedPlan = plans.find(plan => plan.id === form.planId)!
+                              return (
+                                <div className="space-y-2">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="text-[13px] font-semibold text-foreground">{selectedPlan.name}</p>
+                                    {isAdminOnlyPlan(selectedPlan) && (
+                                      <span className="badge badge-gray text-[10px]">
+                                        <Shield className="w-2.5 h-2.5" /> Admin
+                                      </span>
+                                    )}
+                                    {isUnlimitedPlan(selectedPlan) && (
+                                      <span className="badge badge-green text-[10px]">
+                                        <Infinity className="w-2.5 h-2.5" /> Infinito
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[12px] text-muted-foreground">
+                                    {getPlanDurationLabel(selectedPlan)} · {getPlanDeviceLabel(selectedPlan)}
+                                  </p>
+                                  <p className="text-[12px] text-muted-foreground">
+                                    {selectedPlan.price > 0
+                                      ? 'A assinatura sera ativada na hora pelo admin.'
+                                      : 'Plano cortesia/manual exclusivo para entrega administrativa.'}
+                                  </p>
+                                </div>
+                              )
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-[14px] font-semibold text-foreground">Uso da conta agora</p>
@@ -350,7 +481,7 @@ export default function AdminUsers() {
                       <div className="text-right">
                         <p className="text-[13px] font-semibold text-foreground">{playbackDetails.activePlan.name}</p>
                         <p className="text-[11px] text-muted-foreground">
-                          {playbackDetails.activePlan.maxDevices} tela(s)
+                          {getPlanDeviceLabel(playbackDetails.activePlan)}
                         </p>
                       </div>
                     )}
@@ -385,7 +516,9 @@ export default function AdminUsers() {
                             <Shield className="w-4 h-4" />
                             <span className="text-[11px] uppercase tracking-[0.16em]">Capacidade</span>
                           </div>
-                          <p className="text-[22px] font-semibold text-foreground">{playbackDetails?.activePlan?.maxDevices || 1}</p>
+                          <p className="text-[22px] font-semibold text-foreground">
+                            {playbackDetails?.activePlan?.isUnlimited ? 'Sem limite' : (playbackDetails?.activePlan?.maxDevices || 1)}
+                          </p>
                           <p className="text-[11px] text-muted-foreground">tela(s) permitidas</p>
                         </div>
                       </div>
@@ -465,6 +598,11 @@ export default function AdminUsers() {
                 </div>
               )}
             </div>
+            {saveError && (
+              <p className="mt-4 rounded-2xl bg-red-500/10 px-3 py-2 text-[12px] text-[var(--apple-red)]">
+                {saveError}
+              </p>
+            )}
             <div className="flex gap-2.5 mt-5">
               <button onClick={() => setModal(false)} className="btn-secondary flex-1 py-2.5">Cancelar</button>
               <button onClick={handleSave} disabled={saving} className="btn-primary flex-1 py-2.5">

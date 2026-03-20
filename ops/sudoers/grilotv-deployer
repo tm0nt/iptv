@@ -1,0 +1,2 @@
+Defaults:deployer !requiretty
+deployer ALL=(root) NOPASSWD: /usr/bin/docker, /usr/local/bin/k3s, /usr/bin/systemctl, /usr/bin/journalctl

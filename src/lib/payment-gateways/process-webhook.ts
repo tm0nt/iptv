@@ -4,8 +4,11 @@ import { getPaymentGatewayConfig } from '@/lib/system-config'
 import { getGatewayById } from '@/lib/payment-gateways'
 import type { PaymentGatewayId } from '@/lib/payment-gateways/types'
 import { getAuditRequestContext, logAuditEvent } from '@/lib/audit'
+import { ensurePlanSchema, getPlanFlags } from '@/lib/plan-schema'
+import { createPlanExpiryDate } from '@/lib/plan-utils'
 
 export async function processPaymentWebhook(request: NextRequest, gatewayId: PaymentGatewayId) {
+  await ensurePlanSchema()
   const gateway = getGatewayById(gatewayId)
   if (!gateway) {
     return NextResponse.json({ error: 'Gateway inválido' }, { status: 404 })
@@ -68,8 +71,8 @@ export async function processPaymentWebhook(request: NextRequest, gatewayId: Pay
 
   if (result.normalizedStatus === 'APPROVED' && payment.subscriptionId) {
     const plan = await prisma.plan.findUnique({ where: { id: payment.planId } })
-    const expiresAt = new Date()
-    if (plan) expiresAt.setDate(expiresAt.getDate() + plan.durationDays)
+    const planWithFlags = plan ? { ...plan, ...(await getPlanFlags(plan.id)) } : undefined
+    const expiresAt = createPlanExpiryDate(planWithFlags)
 
     await prisma.subscription.updateMany({
       where: {
@@ -88,6 +91,7 @@ export async function processPaymentWebhook(request: NextRequest, gatewayId: Pay
         status: 'ACTIVE',
         startsAt: new Date(),
         expiresAt,
+        autoRenew: !planWithFlags?.isUnlimited,
       },
     })
 

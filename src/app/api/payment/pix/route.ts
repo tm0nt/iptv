@@ -6,6 +6,8 @@ import { prisma } from '@/lib/prisma'
 import { getPublicSystemConfig } from '@/lib/system-config'
 import { resolvePixGateway } from '@/lib/payment-gateways/service'
 import { getAuditRequestContext, logAuditEvent } from '@/lib/audit'
+import { ensurePlanSchema, getPlanFlags } from '@/lib/plan-schema'
+import { createPlanExpiryDate, isAdminOnlyPlan } from '@/lib/plan-utils'
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -29,8 +31,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  await ensurePlanSchema()
   const plan = await prisma.plan.findFirst({ where: { id: planId, active: true } })
   if (!plan) return NextResponse.json({ error: 'Plano não encontrado' }, { status: 404 })
+  const planWithFlags = { ...plan, ...(await getPlanFlags(plan.id)) }
+  if (isAdminOnlyPlan(planWithFlags) && requesterRole !== 'ADMIN') {
+    return NextResponse.json({ error: 'Este plano só pode ser entregue pelo admin.' }, { status: 403 })
+  }
 
   const resolvedReseller = await resolveReseller({ resellerId, referralCode })
   if (actingForAnotherUser && requesterRole === 'RESELLER' && resolvedReseller?.id !== userId) {
@@ -69,8 +76,7 @@ export async function POST(request: NextRequest) {
     data: { status: 'CANCELLED' },
   })
 
-  const expiresAt = new Date()
-  expiresAt.setDate(expiresAt.getDate() + plan.durationDays)
+  const expiresAt = createPlanExpiryDate(planWithFlags)
 
   const subscription = await prisma.subscription.create({
     data: {
@@ -78,6 +84,7 @@ export async function POST(request: NextRequest) {
       planId,
       status: 'PENDING_PAYMENT',
       expiresAt,
+      autoRenew: !planWithFlags.isUnlimited,
       resellerId: resolvedReseller?.id || null,
       username: user.email,
       password: Math.random().toString(36).slice(2, 10),

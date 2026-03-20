@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getAdminPlaybackDetails } from '@/lib/account-playback'
+import { ensurePlanSchema, getPlanFlags } from '@/lib/plan-schema'
 
 export async function GET(
   _request: NextRequest,
@@ -12,6 +13,8 @@ export async function GET(
   if (session?.user?.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+
+  await ensurePlanSchema()
 
   const user = await prisma.user.findUnique({
     where: { id: params.id },
@@ -30,6 +33,7 @@ export async function GET(
           expiresAt: true,
           plan: {
             select: {
+              id: true,
               name: true,
               maxDevices: true,
             },
@@ -53,12 +57,14 @@ export async function GET(
 
   const details = await getAdminPlaybackDetails(user.id)
   const activeSubscription = user.subscriptions[0] || null
+  const activePlanFlags = await getPlanFlags(activeSubscription?.plan.id)
 
   return NextResponse.json({
     ...details,
     activePlan: activeSubscription ? {
       name: activeSubscription.plan.name,
       maxDevices: activeSubscription.plan.maxDevices,
+      isUnlimited: activePlanFlags.isUnlimited,
       expiresAt: activeSubscription.expiresAt,
     } : null,
   })

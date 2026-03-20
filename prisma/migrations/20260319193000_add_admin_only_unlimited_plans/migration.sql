@@ -1,0 +1,8 @@
+ALTER TABLE "plans"
+ADD COLUMN IF NOT EXISTS "adminOnly" BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE "plans"
+ADD COLUMN IF NOT EXISTS "isUnlimited" BOOLEAN NOT NULL DEFAULT FALSE;
+
+CREATE INDEX IF NOT EXISTS "plans_active_adminOnly_idx"
+ON "plans" ("active", "adminOnly");

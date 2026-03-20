@@ -1,13 +1,14 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, Star, Loader2, X, Check } from 'lucide-react'
+import { Plus, Pencil, Trash2, Star, Loader2, X, Check, ShieldCheck, Infinity } from 'lucide-react'
 import { formatCurrency, cn } from '@/lib/utils'
 import { PageIntro } from '@/components/admin/PageIntro'
+import { getPlanDeviceLabel, getPlanDurationLabel, isAdminOnlyPlan, isUnlimitedPlan } from '@/lib/plan-utils'
 
 interface Plan {
   id: string; name: string; description?: string; price: number
   interval: string; durationDays: number; maxDevices: number
-  active: boolean; featured: boolean; subscriberCount?: number
+  active: boolean; featured: boolean; adminOnly?: boolean; isUnlimited?: boolean; subscriberCount?: number
 }
 
 const INTERVAL_LABELS: Record<string, string> = {
@@ -16,7 +17,7 @@ const INTERVAL_LABELS: Record<string, string> = {
 
 const emptyForm = {
   id: '', name: '', description: '', price: '', interval: 'MONTHLY',
-  durationDays: '30', maxDevices: '1', active: true, featured: false,
+  durationDays: '30', maxDevices: '1', active: true, featured: false, adminOnly: false, isUnlimited: false,
 }
 
 export default function AdminPlans() {
@@ -39,7 +40,7 @@ export default function AdminPlans() {
   function openEdit(p: Plan) {
     setForm({ id: p.id, name: p.name, description: p.description||'', price: String(p.price),
       interval: p.interval, durationDays: String(p.durationDays), maxDevices: String(p.maxDevices),
-      active: p.active, featured: p.featured })
+      active: p.active, featured: p.featured, adminOnly: !!p.adminOnly, isUnlimited: !!p.isUnlimited })
     setError(''); setModal(true)
   }
 
@@ -85,25 +86,37 @@ export default function AdminPlans() {
           {plans.map(plan => (
             <div key={plan.id}
               className={cn('surface rounded-[30px] p-5 relative transition-all',
-                !plan.active && 'opacity-50',
-                plan.featured && 'ring-2 ring-[var(--apple-blue)]/30',
+                        !plan.active && 'opacity-50',
+                        plan.featured && 'ring-2 ring-[var(--apple-blue)]/30',
               )}>
-              {plan.featured && (
-                <span className="absolute top-4 right-4 badge badge-blue text-[10px]">
-                  <Star className="w-2.5 h-2.5 fill-current" /> Popular
-                </span>
-              )}
+              <div className="absolute top-4 right-4 flex flex-wrap justify-end gap-1.5">
+                {plan.featured && (
+                  <span className="badge badge-blue text-[10px]">
+                    <Star className="w-2.5 h-2.5 fill-current" /> Popular
+                  </span>
+                )}
+                {isAdminOnlyPlan(plan) && (
+                  <span className="badge badge-gray text-[10px]">
+                    <ShieldCheck className="w-2.5 h-2.5" /> Admin
+                  </span>
+                )}
+                {isUnlimitedPlan(plan) && (
+                  <span className="badge badge-green text-[10px]">
+                    <Infinity className="w-2.5 h-2.5" /> Infinito
+                  </span>
+                )}
+              </div>
               <div className="mb-3">
                 <h3 className="text-[15px] font-bold text-foreground">{plan.name}</h3>
                 <p className="text-[12px] text-muted-foreground mt-0.5">
-                  {INTERVAL_LABELS[plan.interval]} · {plan.durationDays} dias
+                  {INTERVAL_LABELS[plan.interval]} · {getPlanDurationLabel(plan)}
                 </p>
               </div>
               <p className="text-3xl font-bold text-foreground tabular-nums mb-1">
                 {formatCurrency(plan.price)}
               </p>
               <p className="text-[12px] text-muted-foreground mb-3">
-                {plan.maxDevices} dispositivo{plan.maxDevices > 1 ? 's' : ''}
+                {getPlanDeviceLabel(plan)}
               </p>
               {plan.description && (
                 <p className="text-[12px] text-muted-foreground border-t border-border pt-3 mb-3">
@@ -175,20 +188,39 @@ export default function AdminPlans() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Duração (dias)">
-                  <input type="number" value={form.durationDays}
+                  <input type="number" value={form.isUnlimited ? '' : form.durationDays}
                     onChange={e => setForm(f => ({ ...f, durationDays: e.target.value }))}
-                    className="field-input" />
+                    className="field-input"
+                    placeholder={form.isUnlimited ? 'Automatico' : '30'}
+                    disabled={form.isUnlimited} />
                 </Field>
                 <Field label="Dispositivos">
-                  <input type="number" value={form.maxDevices} min="1"
+                  <input type="number" value={form.isUnlimited ? '' : form.maxDevices} min="1"
                     onChange={e => setForm(f => ({ ...f, maxDevices: e.target.value }))}
-                    className="field-input" />
+                    className="field-input"
+                    placeholder={form.isUnlimited ? 'Ilimitados' : '1'}
+                    disabled={form.isUnlimited} />
                 </Field>
               </div>
-              <div className="flex items-center gap-6 pt-1">
+              <div className="flex flex-wrap items-center gap-6 pt-1">
                 <Toggle label="Ativo"    checked={form.active}   onChange={v => setForm(f => ({ ...f, active: v }))} />
                 <Toggle label="Destaque" checked={form.featured} onChange={v => setForm(f => ({ ...f, featured: v }))} />
+                <Toggle label="Somente admin" checked={form.adminOnly} onChange={v => setForm(f => ({ ...f, adminOnly: v }))} />
+                <Toggle
+                  label="Plano infinito"
+                  checked={form.isUnlimited}
+                  onChange={v => setForm(f => ({
+                    ...f,
+                    isUnlimited: v,
+                    adminOnly: v ? true : f.adminOnly,
+                  }))}
+                />
               </div>
+              {form.isUnlimited && (
+                <p className="text-[12px] text-muted-foreground rounded-2xl bg-secondary px-3 py-2">
+                  Este plano passa a ter acesso sem vencimento e telas ilimitadas. Ele pode ficar restrito ao admin.
+                </p>
+              )}
             </div>
 
             {error && (

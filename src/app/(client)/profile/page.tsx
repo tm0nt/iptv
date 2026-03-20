@@ -9,12 +9,13 @@ import Link from 'next/link'
 import { formatCurrency, formatDate, getDaysUntilExpiry, cn } from '@/lib/utils'
 import { useBranding } from '@/hooks/useBranding'
 import { Skeleton } from '@/components/ui/skeleton'
+import { getPlanDeviceLabel, getPlanDurationLabel, getPlanUpgradeRank, isUnlimitedPlan } from '@/lib/plan-utils'
 
 interface Profile {
   id: string; name: string; email: string; role: string; createdAt: string
   subscriptions: Array<{
     id: string; status: string; expiresAt: string; startsAt: string
-    plan: { id: string; name: string; price: number; interval: string; durationDays: number; maxDevices: number }
+    plan: { id: string; name: string; price: number; interval: string; durationDays: number; maxDevices: number; isUnlimited?: boolean }
     payment?: { status: string; paidAt: string; amount: number } | null
   }>
 }
@@ -37,6 +38,7 @@ interface PlanOption {
   interval: string
   durationDays: number
   maxDevices: number
+  isUnlimited?: boolean
   featured?: boolean
 }
 
@@ -72,6 +74,7 @@ export default function ProfilePage() {
   const [accountProfiles, setAccountProfiles] = useState<AccountProfile[]>([])
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null)
   const [maxProfiles, setMaxProfiles] = useState(1)
+  const [hasUnlimitedProfiles, setHasUnlimitedProfiles] = useState(false)
   const [activeSessionsCount, setActiveSessionsCount] = useState(0)
   const [newProfileName, setNewProfileName] = useState('')
   const [newProfileColor, setNewProfileColor] = useState(PROFILE_COLOR_OPTIONS[0])
@@ -122,6 +125,7 @@ export default function ProfilePage() {
         setAccountProfiles(profileConfig.profiles || [])
         setActiveProfileId(profileConfig.activeProfileId || null)
         setMaxProfiles(profileConfig.maxProfiles || 1)
+        setHasUnlimitedProfiles(profileConfig.hasUnlimitedProfiles || false)
         setActiveSessionsCount(profileConfig.activeSessionsCount || 0)
         setPlans(planData.plans || [])
         if (gatewayData) setUpgradeGateway(gatewayData)
@@ -159,15 +163,18 @@ export default function ProfilePage() {
   }
 
   const activeSub = profile?.subscriptions.find(s => s.status === 'ACTIVE')
-  const daysLeft  = activeSub ? getDaysUntilExpiry(activeSub.expiresAt) : 0
-  const availableUpgradePlans = plans.filter(plan => (
-    !activeSub
-      ? true
-      : plan.id !== activeSub.plan.id && (
-        plan.maxDevices > activeSub.plan.maxDevices ||
-        plan.price > activeSub.plan.price
-      )
-  ))
+  const activePlanIsUnlimited = isUnlimitedPlan(activeSub?.plan)
+  const daysLeft  = activeSub && !activePlanIsUnlimited ? getDaysUntilExpiry(activeSub.expiresAt) : 0
+  const availableUpgradePlans = activePlanIsUnlimited
+    ? []
+    : plans.filter(plan => (
+      !activeSub
+        ? true
+        : plan.id !== activeSub.plan.id && (
+          getPlanUpgradeRank(plan) > getPlanUpgradeRank(activeSub.plan) ||
+          plan.price > activeSub.plan.price
+        )
+    ))
   const selectedUpgradePlan = availableUpgradePlans.find(plan => plan.id === selectedUpgradePlanId) || null
   const normalizedUpgradeCpf = normalizeCpf(upgradeCpf)
   const upgradeCpfStatus = normalizedUpgradeCpf.length === 0
@@ -184,6 +191,7 @@ export default function ProfilePage() {
     setAccountProfiles(data.profiles || [])
     setActiveProfileId(data.activeProfileId || null)
     setMaxProfiles(data.maxProfiles || 1)
+    setHasUnlimitedProfiles(data.hasUnlimitedProfiles || false)
     setActiveSessionsCount(data.activeSessionsCount || 0)
   }
 
@@ -205,6 +213,7 @@ export default function ProfilePage() {
     setAccountProfiles(data.profiles || [])
     setActiveProfileId(data.activeProfileId || null)
     setMaxProfiles(data.maxProfiles || 1)
+    setHasUnlimitedProfiles(data.hasUnlimitedProfiles || false)
     setActiveSessionsCount(data.activeSessionsCount || 0)
     setNewProfileName('')
     setNewProfileColor(PROFILE_COLOR_OPTIONS[(accountProfiles.length + 1) % PROFILE_COLOR_OPTIONS.length])
@@ -233,6 +242,7 @@ export default function ProfilePage() {
 
     setAccountProfiles(data.profiles || [])
     setActiveProfileId(data.activeProfileId || null)
+    setHasUnlimitedProfiles(data.hasUnlimitedProfiles || false)
     setActiveSessionsCount(data.activeSessionsCount || 0)
     setEditingProfileId(null)
     setEditingProfileName('')
@@ -254,6 +264,7 @@ export default function ProfilePage() {
     }
     setAccountProfiles(data.profiles || [])
     setActiveProfileId(profileId)
+    setHasUnlimitedProfiles(data.hasUnlimitedProfiles || false)
     setActiveSessionsCount(data.activeSessionsCount || 0)
     setSuccess('Perfil ativo atualizado!')
     setTimeout(() => setSuccess(''), 3000)
@@ -515,8 +526,12 @@ export default function ProfilePage() {
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   <div className="bg-secondary rounded-xl p-3">
                   <p className="text-[11px] text-muted-foreground mb-1">Expira em</p>
-                  <p className="text-[14px] font-semibold text-foreground">{formatDate(activeSub.expiresAt)}</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">{daysLeft} dias restantes</p>
+                  <p className="text-[14px] font-semibold text-foreground">
+                    {activePlanIsUnlimited ? 'Sem vencimento' : formatDate(activeSub.expiresAt)}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {activePlanIsUnlimited ? 'Plano vitalicio entregue pelo admin' : `${daysLeft} dias restantes`}
+                  </p>
                 </div>
                   <div className="bg-secondary rounded-xl p-3">
                     <p className="text-[11px] text-muted-foreground mb-1">Valor</p>
@@ -525,31 +540,35 @@ export default function ProfilePage() {
                   </div>
                   <div className="bg-secondary rounded-xl p-3">
                     <p className="text-[11px] text-muted-foreground mb-1">Telas liberadas</p>
-                    <p className="text-[14px] font-semibold text-foreground">{activeSub.plan.maxDevices}</p>
+                    <p className="text-[14px] font-semibold text-foreground">{getPlanDeviceLabel(activeSub.plan)}</p>
                     <p className="text-[11px] text-muted-foreground mt-0.5">perfil(is) simultâneo(s)</p>
                   </div>
                   <div className="bg-secondary rounded-xl p-3">
                     <p className="text-[11px] text-muted-foreground mb-1">Perfis criados</p>
-                    <p className="text-[14px] font-semibold text-foreground">{accountProfiles.length}/{maxProfiles}</p>
+                    <p className="text-[14px] font-semibold text-foreground">
+                      {hasUnlimitedProfiles ? `${accountProfiles.length}/Sem limite` : `${accountProfiles.length}/${maxProfiles}`}
+                    </p>
                     <p className="text-[11px] text-muted-foreground mt-0.5">conforme o plano atual</p>
                   </div>
                 </div>
 
               {/* Progress bar */}
-              <div className="space-y-1.5">
-                <div className="flex justify-between text-[11px] text-muted-foreground">
-                  <span>{formatDate(activeSub.startsAt)}</span>
-                  <span>{formatDate(activeSub.expiresAt)}</span>
+              {!activePlanIsUnlimited && (
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-[11px] text-muted-foreground">
+                    <span>{formatDate(activeSub.startsAt)}</span>
+                    <span>{formatDate(activeSub.expiresAt)}</span>
+                  </div>
+                  <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-[var(--apple-blue)] rounded-full transition-all"
+                      style={{
+                        width: `${Math.max(5, 100 - (daysLeft / activeSub.plan.durationDays) * 100)}%`
+                      }}
+                    />
+                  </div>
                 </div>
-                <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[var(--apple-blue)] rounded-full transition-all"
-                    style={{
-                      width: `${Math.max(5, 100 - (daysLeft / activeSub.plan.durationDays) * 100)}%`
-                    }}
-                  />
-                </div>
-              </div>
+              )}
             </div>
           ) : (
             <div className="surface rounded-2xl p-6 text-center">
@@ -583,7 +602,7 @@ export default function ProfilePage() {
               </div>
               <div className="rounded-2xl bg-secondary p-4">
                 <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground mb-1">Capacidade</p>
-                <p className="text-[22px] font-semibold text-foreground">{maxProfiles}</p>
+                <p className="text-[22px] font-semibold text-foreground">{hasUnlimitedProfiles ? 'Sem limite' : maxProfiles}</p>
                 <p className="text-[11px] text-muted-foreground">perfil(is) liberados</p>
               </div>
               <div className="rounded-2xl bg-secondary p-4">
@@ -593,7 +612,7 @@ export default function ProfilePage() {
               </div>
               <div className="rounded-2xl bg-secondary p-4">
                 <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground mb-1">Telas do plano</p>
-                <p className="text-[22px] font-semibold text-foreground">{activeSub?.plan.maxDevices || 1}</p>
+                <p className="text-[22px] font-semibold text-foreground">{activeSub ? getPlanDeviceLabel(activeSub.plan) : '1 tela'}</p>
                 <p className="text-[11px] text-muted-foreground">uso simultâneo</p>
               </div>
               <div className="rounded-2xl bg-secondary p-4">
@@ -806,7 +825,7 @@ export default function ProfilePage() {
                       <div>
                         <p className="text-[14px] font-semibold text-foreground">{plan.name}</p>
                         <p className="text-[12px] text-muted-foreground">
-                          {plan.durationDays} dias · {plan.maxDevices} tela(s)
+                          {getPlanDurationLabel(plan)} · {getPlanDeviceLabel(plan)}
                         </p>
                       </div>
                       <p className="text-[14px] font-semibold text-foreground">{formatCurrency(plan.price)}</p>
@@ -825,11 +844,11 @@ export default function ProfilePage() {
                     <div className="grid grid-cols-2 gap-3 mt-3">
                       <div className="rounded-xl bg-background px-3 py-2.5">
                         <p className="text-[11px] text-muted-foreground mb-1">Telas atuais</p>
-                        <p className="text-[14px] font-semibold text-foreground">{activeSub.plan.maxDevices}</p>
+                        <p className="text-[14px] font-semibold text-foreground">{getPlanDeviceLabel(activeSub.plan)}</p>
                       </div>
                       <div className="rounded-xl bg-background px-3 py-2.5">
                         <p className="text-[11px] text-muted-foreground mb-1">Telas após upgrade</p>
-                        <p className="text-[14px] font-semibold text-foreground">{selectedUpgradePlan.maxDevices}</p>
+                        <p className="text-[14px] font-semibold text-foreground">{getPlanDeviceLabel(selectedUpgradePlan)}</p>
                       </div>
                     </div>
                   </div>

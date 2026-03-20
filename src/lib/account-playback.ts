@@ -4,6 +4,8 @@ import type { NextRequest } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { cookies } from 'next/headers'
+import { ensurePlanSchema, getPlanFlags } from '@/lib/plan-schema'
+import { getPlanDeviceLimit } from '@/lib/plan-utils'
 
 const PROFILE_COOKIE = 'active_profile_id'
 const VIEWER_COOKIE = 'viewer_key'
@@ -21,6 +23,8 @@ type ActiveSubscription = {
     maxDevices: number
     durationDays: number
     interval: string
+    isUnlimited: boolean
+    adminOnly: boolean
   }
 }
 
@@ -202,7 +206,8 @@ export async function ensurePlaybackTables() {
 }
 
 export async function getActiveSubscription(userId: string): Promise<ActiveSubscription | null> {
-  return prisma.subscription.findFirst({
+  await ensurePlanSchema()
+  const subscription = await prisma.subscription.findFirst({
     where: {
       userId,
       status: 'ACTIVE',
@@ -221,7 +226,18 @@ export async function getActiveSubscription(userId: string): Promise<ActiveSubsc
       },
     },
     orderBy: { expiresAt: 'desc' },
-  }) as Promise<ActiveSubscription | null>
+  })
+
+  if (!subscription) return null
+
+  const flags = await getPlanFlags(subscription.plan.id)
+  return {
+    ...subscription,
+    plan: {
+      ...subscription.plan,
+      ...flags,
+    },
+  } as ActiveSubscription
 }
 
 export async function ensureDefaultProfiles(userId: string, maxProfiles: number) {
@@ -390,6 +406,7 @@ export async function authorizePlaybackAccess(input: {
 
   const currentProfileSession = rows.find(row => row.profileId === input.profileId)
   const activeDistinctProfiles = new Set(rows.map(row => row.profileId))
+  const maxDevices = getPlanDeviceLimit({ maxDevices: input.maxDevices })
 
   if (currentProfileSession && currentProfileSession.viewerKey !== input.viewerKey) {
     return {
@@ -399,11 +416,11 @@ export async function authorizePlaybackAccess(input: {
     }
   }
 
-  if (!currentProfileSession && activeDistinctProfiles.size >= Math.max(1, input.maxDevices)) {
+  if (!currentProfileSession && activeDistinctProfiles.size >= maxDevices) {
     return {
       ok: false as const,
       code: 'DEVICE_LIMIT',
-      message: `Seu plano permite ${input.maxDevices} tela(s) ao mesmo tempo.`,
+      message: `Seu plano permite ${maxDevices} tela(s) ao mesmo tempo.`,
     }
   }
 

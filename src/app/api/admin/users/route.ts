@@ -2,18 +2,66 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { Prisma, type User as DbUser } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import { getAuditRequestContext, logAuditEvent } from '@/lib/audit'
 import { getAdminPlaybackUsage } from '@/lib/account-playback'
+import { ensurePlanSchema, getPlanFlags, getPlanFlagsMap } from '@/lib/plan-schema'
+import { createPlanExpiryDate } from '@/lib/plan-utils'
 
 async function checkAdmin() {
   const session = await getServerSession(authOptions)
   return session?.user?.role === 'ADMIN' ? session : null
 }
 
+async function assignPlanToClient(tx: Prisma.TransactionClient, user: { id: string; email: string }, planId: string) {
+  const plan = await tx.plan.findFirst({
+    where: { id: planId, active: true },
+    select: {
+      id: true,
+      name: true,
+      durationDays: true,
+      maxDevices: true,
+    },
+  })
+
+  if (!plan) {
+    throw new Error('Plano selecionado não foi encontrado.')
+  }
+  const flags = await getPlanFlags(plan.id)
+  const planWithFlags = { ...plan, ...flags }
+
+  await tx.subscription.updateMany({
+    where: {
+      userId: user.id,
+      status: { in: ['ACTIVE', 'TRIAL', 'PENDING_PAYMENT'] },
+    },
+    data: {
+      status: 'EXPIRED',
+      autoRenew: false,
+    },
+  })
+
+  const subscription = await tx.subscription.create({
+    data: {
+      userId: user.id,
+      planId: plan.id,
+      status: 'ACTIVE',
+      startsAt: new Date(),
+      expiresAt: createPlanExpiryDate(planWithFlags),
+      autoRenew: !planWithFlags.isUnlimited,
+      username: user.email,
+      password: Math.random().toString(36).slice(2, 10),
+    },
+  })
+
+  return { plan: planWithFlags, subscription }
+}
+
 export async function GET(request: NextRequest) {
   const session = await checkAdmin()
   if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  await ensurePlanSchema()
 
   const { searchParams } = new URL(request.url)
   const role = searchParams.get('role')
@@ -59,6 +107,7 @@ export async function GET(request: NextRequest) {
         userId: true,
         plan: {
           select: {
+            id: true,
             name: true,
             maxDevices: true,
           },
@@ -70,13 +119,16 @@ export async function GET(request: NextRequest) {
   ])
 
   const usageMap = new Map(playbackUsage.map(item => [item.userId, item]))
-  const activePlanMap = new Map<string, { name: string; maxDevices: number }>()
+  const activePlanMap = new Map<string, { name: string; maxDevices: number; isUnlimited: boolean }>()
+  const planFlagsMap = await getPlanFlagsMap(activeSubscriptions.map(subscription => subscription.plan.id))
 
   for (const subscription of activeSubscriptions) {
     if (!activePlanMap.has(subscription.userId)) {
+      const flags = planFlagsMap.get(subscription.plan.id) || { adminOnly: false, isUnlimited: false, id: subscription.plan.id }
       activePlanMap.set(subscription.userId, {
         name: subscription.plan.name,
         maxDevices: subscription.plan.maxDevices,
+        isUnlimited: flags.isUnlimited,
       })
     }
   }
@@ -91,6 +143,7 @@ export async function GET(request: NextRequest) {
         activeSessionsCount: usage?.activeSessionsCount || 0,
         activePlanName: activePlan?.name || null,
         activePlanMaxDevices: activePlan?.maxDevices || null,
+        activePlanIsUnlimited: activePlan?.isUnlimited || false,
       }
     }),
     total,
@@ -106,19 +159,41 @@ export async function POST(request: NextRequest) {
   const { ipAddress, userAgent } = getAuditRequestContext(request)
   const body = await request.json()
   const hashed = await bcrypt.hash(body.password, 12)
+  const shouldAssignPlan = body.role === 'CLIENT' && body.assignPlanNow && body.planId
+  if (shouldAssignPlan) {
+    await ensurePlanSchema()
+  }
 
-  const user = await prisma.user.create({
-    data: {
-      name: body.name,
-      email: body.email,
-      password: hashed,
-      role: body.role || 'CLIENT',
-      active: true,
-      referralCode: body.role === 'RESELLER' ? generateCode(body.name) : undefined,
-      commissionRate: body.role === 'RESELLER' ? (body.commissionRate || 0.20) : undefined,
-      parentId: body.role === 'RESELLER' ? (session.user as any).id : undefined,
-    },
-  })
+  let user: DbUser
+  let assignedPlan: Awaited<ReturnType<typeof assignPlanToClient>> | null = null
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
+        data: {
+          name: body.name,
+          email: body.email,
+          password: hashed,
+          role: body.role || 'CLIENT',
+          active: true,
+          referralCode: body.role === 'RESELLER' ? generateCode(body.name) : undefined,
+          commissionRate: body.role === 'RESELLER' ? (body.commissionRate || 0.20) : undefined,
+          parentId: body.role === 'RESELLER' ? (session.user as any).id : undefined,
+        },
+      })
+
+      const assigned = shouldAssignPlan
+        ? await assignPlanToClient(tx, { id: createdUser.id, email: createdUser.email }, String(body.planId))
+        : null
+
+      return { user: createdUser, assignedPlan: assigned }
+    })
+    user = result.user
+    assignedPlan = result.assignedPlan
+  } catch (error) {
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : 'Nao foi possivel criar o usuario.',
+    }, { status: 400 })
+  }
 
   await logAuditEvent({
     action: 'admin.user.created',
@@ -128,10 +203,19 @@ export async function POST(request: NextRequest) {
     actor: session.user,
     ipAddress,
     userAgent,
-    metadata: { role: user.role, referralCode: user.referralCode || null },
+    metadata: {
+      role: user.role,
+      referralCode: user.referralCode || null,
+      assignedPlanId: assignedPlan?.plan.id || null,
+      assignedPlanName: assignedPlan?.plan.name || null,
+      subscriptionId: assignedPlan?.subscription.id || null,
+    },
   })
 
-  return NextResponse.json({ user: { ...user, password: undefined } }, { status: 201 })
+  return NextResponse.json({
+    user: { ...user, password: undefined },
+    subscription: assignedPlan?.subscription || null,
+  }, { status: 201 })
 }
 
 export async function PUT(request: NextRequest) {
@@ -145,12 +229,33 @@ export async function PUT(request: NextRequest) {
     active: body.active,
     commissionRate: body.commissionRate,
   }
+  const shouldAssignPlan = body.role === 'CLIENT' && body.assignPlanNow && body.planId
+  if (shouldAssignPlan) {
+    await ensurePlanSchema()
+  }
 
   if (body.password) {
     data.password = await bcrypt.hash(body.password, 12)
   }
 
-  const user = await prisma.user.update({ where: { id: body.id }, data })
+  let user: DbUser
+  let assignedPlan: Awaited<ReturnType<typeof assignPlanToClient>> | null = null
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const updatedUser = await tx.user.update({ where: { id: body.id }, data })
+      const assigned = shouldAssignPlan
+        ? await assignPlanToClient(tx, { id: updatedUser.id, email: updatedUser.email }, String(body.planId))
+        : null
+
+      return { user: updatedUser, assignedPlan: assigned }
+    })
+    user = result.user
+    assignedPlan = result.assignedPlan
+  } catch (error) {
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : 'Nao foi possivel atualizar o usuario.',
+    }, { status: 400 })
+  }
 
   await logAuditEvent({
     action: 'admin.user.updated',
@@ -164,10 +269,16 @@ export async function PUT(request: NextRequest) {
       active: user.active,
       changedPassword: !!body.password,
       commissionRate: user.commissionRate,
+      assignedPlanId: assignedPlan?.plan.id || null,
+      assignedPlanName: assignedPlan?.plan.name || null,
+      subscriptionId: assignedPlan?.subscription.id || null,
     },
   })
 
-  return NextResponse.json({ user: { ...user, password: undefined } })
+  return NextResponse.json({
+    user: { ...user, password: undefined },
+    subscription: assignedPlan?.subscription || null,
+  })
 }
 
 function generateCode(name: string): string {

@@ -122,6 +122,8 @@ export interface Plan {
   interval:     PlanInterval
   durationDays: number
   maxDevices:   number
+  adminOnly?:   boolean
+  isUnlimited?: boolean
   active:       boolean
   featured:     boolean
 }

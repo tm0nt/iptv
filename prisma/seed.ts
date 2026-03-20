@@ -118,7 +118,21 @@ async function seedPlans() {
       maxDevices: 2,
       featured: false,
     },
+    {
+      id: 'admin-infinito',
+      name: 'Infinito Admin',
+      description: 'Acesso sem vencimento e telas ilimitadas. Exclusivo do admin.',
+      price: 0,
+      interval: PlanInterval.ANNUAL,
+      durationDays: 365,
+      maxDevices: 1,
+      featured: false,
+    },
   ]
+
+  const planFlags = new Map<string, { adminOnly: boolean; isUnlimited: boolean }>([
+    ['admin-infinito', { adminOnly: true, isUnlimited: true }],
+  ])
 
   for (const plan of plansData) {
     await prisma.plan.upsert({
@@ -126,6 +140,15 @@ async function seedPlans() {
       update: { ...plan, active: true },
       create: { ...plan, active: true },
     })
+
+    const flags = planFlags.get(plan.id) || { adminOnly: false, isUnlimited: false }
+    await prisma.$executeRaw`
+      UPDATE "plans"
+      SET
+        "adminOnly" = ${flags.adminOnly},
+        "isUnlimited" = ${flags.isUnlimited}
+      WHERE "id" = ${plan.id}
+    `
   }
 
   const storedPlans = await prisma.plan.findMany({
@@ -141,6 +164,7 @@ async function seedPlans() {
       familia: byId.get('familia') as Plan,
       anualPremium: byId.get('anual-premium') as Plan,
       trimestral: byId.get('trimestral') as Plan,
+      adminInfinito: byId.get('admin-infinito') as Plan,
     },
   }
 }

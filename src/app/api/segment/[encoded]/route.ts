@@ -8,6 +8,8 @@ import {
   getViewerKeyFromRequest,
   resolveActiveProfile,
 } from '@/lib/account-playback'
+import { ensurePlanSchema, getPlanFlags } from '@/lib/plan-schema'
+import { getPlanDeviceLimit } from '@/lib/plan-utils'
 
 export async function GET(
   request: NextRequest,
@@ -19,9 +21,10 @@ export async function GET(
   }
 
   const userId = session.user.id
+  await ensurePlanSchema()
   const subscription = await prisma.subscription.findFirst({
     where: { userId, status: 'ACTIVE', expiresAt: { gt: new Date() } },
-    include: { plan: { select: { maxDevices: true } } },
+    include: { plan: { select: { id: true, maxDevices: true } } },
   })
 
   if (!subscription) {
@@ -29,7 +32,8 @@ export async function GET(
   }
 
   const requestedProfileId = request.cookies.get(getProfileCookieName())?.value || null
-  const { activeProfile } = await resolveActiveProfile(userId, requestedProfileId, subscription.plan?.maxDevices || 1)
+  const maxDevices = getPlanDeviceLimit({ ...subscription.plan, ...(await getPlanFlags(subscription.plan.id)) })
+  const { activeProfile } = await resolveActiveProfile(userId, requestedProfileId, maxDevices)
   const viewerKey = getViewerKeyFromRequest(request)
   if (!activeProfile) {
     return NextResponse.json({ error: 'Perfil não encontrado' }, { status: 400 })
@@ -38,7 +42,7 @@ export async function GET(
   const access = await authorizePlaybackAccess({
     userId,
     subscriptionId: subscription.id,
-    maxDevices: subscription.plan?.maxDevices || 1,
+    maxDevices,
     viewerKey,
     profileId: activeProfile.id,
     event: 'segment.access',

@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { getAuditRequestContext, logAuditEvent } from '@/lib/audit'
+import { ensurePlanSchema, getPlanFlags } from '@/lib/plan-schema'
+import { createPlanExpiryDate, isAdminOnlyPlan } from '@/lib/plan-utils'
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -42,6 +44,7 @@ export async function POST(request: NextRequest) {
 
   const { ipAddress, userAgent } = getAuditRequestContext(request)
   const body = await request.json()
+  await ensurePlanSchema()
 
   // Create user + subscription
   const hashed = await bcrypt.hash(body.password || 'mudar123', 12)
@@ -58,9 +61,11 @@ export async function POST(request: NextRequest) {
 
   const plan = await prisma.plan.findUnique({ where: { id: body.planId } })
   if (!plan) return NextResponse.json({ error: 'Plan not found' }, { status: 404 })
-
-  const expiresAt = new Date()
-  expiresAt.setDate(expiresAt.getDate() + plan.durationDays)
+  const planWithFlags = { ...plan, ...(await getPlanFlags(plan.id)) }
+  if (reseller.role === 'RESELLER' && isAdminOnlyPlan(planWithFlags)) {
+    return NextResponse.json({ error: 'Este plano é exclusivo do admin.' }, { status: 403 })
+  }
+  const expiresAt = createPlanExpiryDate(planWithFlags)
 
   const sub = await prisma.subscription.create({
     data: {
@@ -68,6 +73,7 @@ export async function POST(request: NextRequest) {
       planId: body.planId,
       status: 'ACTIVE',
       expiresAt,
+      autoRenew: !planWithFlags.isUnlimited,
       resellerId: reseller.id,
       username: body.username || newUser.email,
       password: body.iptv_password || Math.random().toString(36).slice(2, 10),

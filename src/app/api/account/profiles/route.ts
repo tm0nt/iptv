@@ -14,10 +14,7 @@ import {
   resolveActiveProfile,
 } from '@/lib/account-playback'
 import { getAuditRequestContext, logAuditEvent } from '@/lib/audit'
-
-function getMaxProfiles(maxDevices?: number | null) {
-  return Math.max(1, maxDevices || 1)
-}
+import { getPlanDeviceLimit, isUnlimitedPlan } from '@/lib/plan-utils'
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -25,7 +22,8 @@ export async function GET(request: NextRequest) {
 
   await ensurePlaybackTables()
   const activeSubscription = await getActiveSubscription(session.user.id)
-  const maxProfiles = getMaxProfiles(activeSubscription?.plan.maxDevices)
+  const maxProfiles = getPlanDeviceLimit(activeSubscription?.plan)
+  const hasUnlimitedProfiles = isUnlimitedPlan(activeSubscription?.plan)
   const cookieProfileId = request.cookies.get(getProfileCookieName())?.value || null
   const { profiles, activeProfile } = await resolveActiveProfile(session.user.id, cookieProfileId, maxProfiles)
   const viewerKey = getViewerKeyFromRequest(request)
@@ -41,7 +39,8 @@ export async function GET(request: NextRequest) {
     })),
     activeProfileId: activeProfile?.id || null,
     maxProfiles,
-    canCreateMore: profiles.length < maxProfiles,
+    hasUnlimitedProfiles,
+    canCreateMore: hasUnlimitedProfiles || profiles.length < maxProfiles,
     activeSessionsCount: playbackOverview.activeSessionsCount,
   })
 
@@ -62,7 +61,7 @@ export async function POST(request: NextRequest) {
   if (!name) return NextResponse.json({ error: 'Informe o nome do perfil.' }, { status: 400 })
 
   const activeSubscription = await getActiveSubscription(session.user.id)
-  const maxProfiles = getMaxProfiles(activeSubscription?.plan.maxDevices)
+  const maxProfiles = getPlanDeviceLimit(activeSubscription?.plan)
   if (!(await canCreateMoreProfiles(session.user.id, maxProfiles))) {
     return NextResponse.json({ error: 'Seu plano atual já atingiu o limite de perfis.' }, { status: 400 })
   }
@@ -95,7 +94,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   const activeSubscription = await getActiveSubscription(session.user.id)
-  const maxProfiles = getMaxProfiles(activeSubscription?.plan.maxDevices)
+  const maxProfiles = getPlanDeviceLimit(activeSubscription?.plan)
   const { profiles } = await resolveActiveProfile(session.user.id, profileId, maxProfiles)
   const target = profiles.find(profile => profile.id === profileId)
 

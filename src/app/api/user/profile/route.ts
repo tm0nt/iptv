@@ -4,11 +4,13 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { getAuditRequestContext, logAuditEvent } from '@/lib/audit'
+import { ensurePlanSchema, getPlanFlagsMap } from '@/lib/plan-schema'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const userId = session.user.id
+  await ensurePlanSchema()
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -24,7 +26,20 @@ export async function GET() {
       },
     },
   })
-  return NextResponse.json({ user })
+  const planFlagsMap = await getPlanFlagsMap(user?.subscriptions.map(subscription => subscription.plan.id) || [])
+
+  return NextResponse.json({
+    user: user ? {
+      ...user,
+      subscriptions: user.subscriptions.map(subscription => ({
+        ...subscription,
+        plan: {
+          ...subscription.plan,
+          ...(planFlagsMap.get(subscription.plan.id) || { adminOnly: false, isUnlimited: false }),
+        },
+      })),
+    } : null,
+  })
 }
 
 export async function PATCH(request: NextRequest) {

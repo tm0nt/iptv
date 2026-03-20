@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getAuditRequestContext, logAuditEvent } from '@/lib/audit'
+import { ensurePlanSchema, getPlanFlagsMap, updatePlanFlags } from '@/lib/plan-schema'
 
 async function getSession() {
   const session = await getServerSession(authOptions)
@@ -17,19 +18,29 @@ export async function GET() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  await ensurePlanSchema()
   const plans = await prisma.plan.findMany({
     where: role === 'RESELLER' ? { active: true } : {},
     include: { _count: { select: { subscriptions: true } } },
     orderBy: { price: 'asc' },
   })
 
-  return NextResponse.json({ plans })
+  const flagsMap = await getPlanFlagsMap(plans.map(plan => plan.id))
+  const mergedPlans = plans
+    .map(plan => ({
+      ...plan,
+      ...(flagsMap.get(plan.id) || { adminOnly: false, isUnlimited: false }),
+    }))
+    .filter(plan => role !== 'RESELLER' || !plan.adminOnly)
+
+  return NextResponse.json({ plans: mergedPlans })
 }
 
 export async function POST(request: NextRequest) {
   const { session, role } = await getSession()
   if (!session || role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+  await ensurePlanSchema()
   const { ipAddress, userAgent } = getAuditRequestContext(request)
   const body = await request.json()
   const plan = await prisma.plan.create({
@@ -44,6 +55,10 @@ export async function POST(request: NextRequest) {
       featured: body.featured ?? false,
     },
   })
+  await updatePlanFlags(plan.id, {
+    adminOnly: body.adminOnly ?? false,
+    isUnlimited: body.isUnlimited ?? false,
+  })
 
   await logAuditEvent({
     action: 'admin.plan.created',
@@ -53,16 +68,29 @@ export async function POST(request: NextRequest) {
     actor: session.user,
     ipAddress,
     userAgent,
-    metadata: { price: plan.price, interval: plan.interval, active: plan.active },
+    metadata: {
+      price: plan.price,
+      interval: plan.interval,
+      active: plan.active,
+      adminOnly: body.adminOnly ?? false,
+      isUnlimited: body.isUnlimited ?? false,
+    },
   })
 
-  return NextResponse.json({ plan }, { status: 201 })
+  return NextResponse.json({
+    plan: {
+      ...plan,
+      adminOnly: body.adminOnly ?? false,
+      isUnlimited: body.isUnlimited ?? false,
+    },
+  }, { status: 201 })
 }
 
 export async function PUT(request: NextRequest) {
   const { session, role } = await getSession()
   if (!session || role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+  await ensurePlanSchema()
   const { ipAddress, userAgent } = getAuditRequestContext(request)
   const body = await request.json()
   const plan = await prisma.plan.update({
@@ -78,6 +106,10 @@ export async function PUT(request: NextRequest) {
       featured: body.featured,
     },
   })
+  await updatePlanFlags(plan.id, {
+    adminOnly: body.adminOnly ?? false,
+    isUnlimited: body.isUnlimited ?? false,
+  })
 
   await logAuditEvent({
     action: 'admin.plan.updated',
@@ -87,16 +119,30 @@ export async function PUT(request: NextRequest) {
     actor: session.user,
     ipAddress,
     userAgent,
-    metadata: { price: plan.price, interval: plan.interval, active: plan.active, featured: plan.featured },
+    metadata: {
+      price: plan.price,
+      interval: plan.interval,
+      active: plan.active,
+      featured: plan.featured,
+      adminOnly: body.adminOnly ?? false,
+      isUnlimited: body.isUnlimited ?? false,
+    },
   })
 
-  return NextResponse.json({ plan })
+  return NextResponse.json({
+    plan: {
+      ...plan,
+      adminOnly: body.adminOnly ?? false,
+      isUnlimited: body.isUnlimited ?? false,
+    },
+  })
 }
 
 export async function DELETE(request: NextRequest) {
   const { session, role } = await getSession()
   if (!session || role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+  await ensurePlanSchema()
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })

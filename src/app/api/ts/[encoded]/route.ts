@@ -8,6 +8,8 @@ import {
   getViewerKeyFromRequest,
   resolveActiveProfile,
 } from '@/lib/account-playback'
+import { ensurePlanSchema, getPlanFlags } from '@/lib/plan-schema'
+import { getPlanDeviceLimit } from '@/lib/plan-utils'
 
 const SYNTHETIC_SEGMENT_MS = 8500
 
@@ -28,21 +30,23 @@ export async function GET(
   if (!session?.user) return new NextResponse('Unauthorized', { status: 401 })
 
   const userId = session.user.id
+  await ensurePlanSchema()
   const sub = await prisma.subscription.findFirst({
     where: { userId, status: 'ACTIVE', expiresAt: { gt: new Date() } },
-    include: { plan: { select: { maxDevices: true } } },
+    include: { plan: { select: { id: true, maxDevices: true } } },
   })
   if (!sub) return new NextResponse('Forbidden', { status: 403 })
 
   const requestedProfileId = req.cookies.get(getProfileCookieName())?.value || null
-  const { activeProfile } = await resolveActiveProfile(userId, requestedProfileId, sub.plan?.maxDevices || 1)
+  const maxDevices = getPlanDeviceLimit({ ...sub.plan, ...(await getPlanFlags(sub.plan.id)) })
+  const { activeProfile } = await resolveActiveProfile(userId, requestedProfileId, maxDevices)
   const viewerKey = getViewerKeyFromRequest(req)
   if (!activeProfile) return new NextResponse('Perfil não encontrado', { status: 400 })
 
   const access = await authorizePlaybackAccess({
     userId,
     subscriptionId: sub.id,
-    maxDevices: sub.plan?.maxDevices || 1,
+    maxDevices,
     viewerKey,
     profileId: activeProfile.id,
     event: 'ts.access',

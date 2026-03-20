@@ -10,6 +10,7 @@ import {
   releasePlaybackSession,
   resolveActiveProfile,
 } from '@/lib/account-playback'
+import { getPlanDeviceLimit } from '@/lib/plan-utils'
 
 const ALLOWED_EVENTS = new Set([
   'player.playing',
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
 
   const ctx = getAuditRequestContext(request)
   const activeSubscription = await getActiveSubscription(session.user.id)
-  const maxProfiles = Math.max(1, activeSubscription?.plan.maxDevices || 1)
+  const maxProfiles = getPlanDeviceLimit(activeSubscription?.plan)
   const requestedProfileId = request.cookies.get(getProfileCookieName())?.value || null
   const { activeProfile } = await resolveActiveProfile(session.user.id, requestedProfileId, maxProfiles)
   const viewerKey = getViewerKeyFromRequest(request)
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
     const access = await authorizePlaybackAccess({
       userId: session.user.id,
       subscriptionId: activeSubscription.id,
-      maxDevices: activeSubscription.plan.maxDevices,
+      maxDevices: maxProfiles,
       viewerKey,
       profileId: activeProfile.id,
       channelUuid: body.channelUuid || null,

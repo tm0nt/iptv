@@ -8,6 +8,7 @@ import {
   getProfileCookieName,
   resolveActiveProfile,
 } from '@/lib/account-playback'
+import { getPlanDeviceLimit } from '@/lib/plan-utils'
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
 
   await ensurePlaybackTables()
   const activeSubscription = await getActiveSubscription(session.user.id)
-  const maxProfiles = Math.max(1, activeSubscription?.plan.maxDevices || 1)
+  const maxProfiles = getPlanDeviceLimit(activeSubscription?.plan)
   const requestedProfileId = request.cookies.get(getProfileCookieName())?.value || null
   const { activeProfile } = await resolveActiveProfile(session.user.id, requestedProfileId, maxProfiles)
 

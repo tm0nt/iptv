@@ -20,9 +20,49 @@ npx prisma generate
 echo "[app] Applying Prisma migrations..."
 npx prisma migrate deploy
 
-if [ "${RUN_SEED_ON_BOOT:-true}" = "true" ]; then
+should_run_seed() {
+  case "${RUN_SEED_ON_BOOT:-auto}" in
+    true|TRUE|1|yes|YES)
+      return 0
+      ;;
+    false|FALSE|0|no|NO)
+      return 1
+      ;;
+    auto|AUTO|'')
+      node <<'EOF'
+const { PrismaClient } = require('@prisma/client')
+
+const prisma = new PrismaClient()
+
+;(async () => {
+  try {
+    const [plansCount, adminCount, systemConfigCount] = await Promise.all([
+      prisma.plan.count().catch(() => 0),
+      prisma.user.count({ where: { role: 'ADMIN' } }).catch(() => 0),
+      prisma.systemConfig.count().catch(() => 0),
+    ])
+
+    process.exit(plansCount === 0 || adminCount === 0 || systemConfigCount === 0 ? 0 : 1)
+  } catch (error) {
+    console.error('[app] Seed auto-check failed, running seed as fallback.', error)
+    process.exit(0)
+  } finally {
+    await prisma.$disconnect().catch(() => {})
+  }
+})()
+EOF
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+if should_run_seed; then
   echo "[app] Running production seed..."
   SEED_MODE="${SEED_MODE:-production}" npm run db:seed
+else
+  echo "[app] Seed skipped on boot."
 fi
 
 echo "[app] Starting Next.js on 0.0.0.0:${APP_PORT}..."

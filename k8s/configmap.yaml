@@ -11,7 +11,7 @@ data:
   POSTGRES_PORT: "5432"
   POSTGRES_DB: "iptv"
   POSTGRES_USER: "grilotv"
-  RUN_SEED_ON_BOOT: "true"
+  RUN_SEED_ON_BOOT: "auto"
   SEED_MODE: "production"
   SEED_ADMIN_NAME: "Administrador"
   SEED_SITE_NAME: "IPTV"
